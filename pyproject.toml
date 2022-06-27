@@ -1,0 +1,2 @@
+[tool.isort]
+extend_skip = [".md", ".json", "__init__.py"]
