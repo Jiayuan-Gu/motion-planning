@@ -52,17 +52,6 @@ class JointStateSpace(StateSpace):
     def interpolate(self, state0, state1, weight):
         return state0 + (state1 - state0) * weight
 
-    def get_goal_sampler(self):
-        pass
-
-    def get_is_goal_satisfied_fn(self, goal, thresh):
-        goal = np.array(goal)
-
-        def is_goal_satisfied_fn(state):
-            return np.any(np.linalg.norm(goal - state, axis=-1) <= thresh)
-
-        return is_goal_satisfied_fn
-
 
 class GoalStates(GoalState):
     def sample(self):

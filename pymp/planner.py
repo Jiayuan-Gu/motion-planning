@@ -5,7 +5,7 @@ from typing import Sequence
 import numpy as np
 import pinocchio
 
-from pymp.path_planning import RRT, JointStateSpace, GoalStates
+from pymp.path_planning import RRT, GoalStates, JointStateSpace, RRTConnect
 from pymp.robot import RobotWrapper
 from pymp.utils import xyz_wijk_to_SE3
 
@@ -123,8 +123,10 @@ class Planner:
         state_space.set_state_validity_checker(self.robot.isCollisionFree)
         goal_space = GoalStates(goal_qpos, state_space, 1e-3)
         
-        rrt = RRT(state_space, goal_bias=0.05)
-        rrt.setup([start_qpos], goal_space.sample, goal_space.is_satisfied, 0.1, 100000)
+        # rrt = RRT(state_space, goal_bias=0.05)
+        # rrt.setup([start_qpos], goal_space.sample, goal_space.is_satisfied, 0.1, 100000)
+        rrt = RRTConnect(state_space)
+        rrt.setup([start_qpos], goal_space.goal, 0.1, 100000)
         rrt_result = rrt.solve()
 
         result = dict(position=np.array(rrt_result), status=rrt.status)
