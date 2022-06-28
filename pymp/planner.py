@@ -117,9 +117,6 @@ class Planner:
 
         state_space = JointStateSpace(*self.robot.joint_limits)
         # state_space.set_state_validity_checker(lambda x: True)
-        # self.robot.addBoxGeometry(
-        #     [0.02, 0.02, 0.02], pinocchio.SE3(np.eye(3), np.array([0.4, 0, 0.8]))
-        # )
         state_space.set_state_validity_checker(self.robot.isCollisionFree)
         goal_space = GoalStates(goal_qpos, state_space, 1e-3)
         

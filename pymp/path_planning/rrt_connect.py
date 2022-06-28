@@ -99,6 +99,8 @@ class RRTConnect:
             # If we connected the trees in a valid way
             if status == "REACHED":
                 path = node.traceback()[::-1] + other_node.traceback()
+                if not is_start_tree:
+                    path = path[::-1]
                 self.status == "success"
                 return path
         else:

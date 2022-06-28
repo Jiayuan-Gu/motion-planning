@@ -205,44 +205,31 @@ class RobotWrapper(pinocchio.RobotWrapper):
         )
 
     def computeCollisions(self, q):
-        q = np.array(q)
         # Create data structures
         data = self.model.createData()
         geom_data = pinocchio.GeometryData(self.collision_model)
 
         # Compute all the collisions
         return pinocchio.computeCollisions(
-            self.model, data, self.collision_model, geom_data, q, True
+            self.model,
+            data,
+            self.collision_model,
+            geom_data,
+            np.array(q),
+            stop_at_first_collision=True,
         )
 
     def isCollisionFree(self, q):
         return not self.computeCollisions(q)
 
-    def addBoxGeometry(self, size, T):
+    def addBox(self, size, pose, color=(0, 1, 0, 1)):
         box = fcl.Box(*size)
-        go_box = pinocchio.GeometryObject("box", 0, box, pinocchio.SE3(T))
-        go_box.meshColor = np.array([0, 1, 0, 1])
-        collision_id = self.collision_model.addGeometryObject(go_box)
+        go_box = pinocchio.GeometryObject("box", 0, box, pinocchio.SE3(pose))
+        go_box.meshColor = np.array(color)
 
-        # for cp in self.collision_model.geometryObjects:
-        #     print(cp.name)
-
-        for x in self.collision_model.geometryObjects:
-            print(x.name)
-            if x.name == "box":
-                continue
-            # panda_hand_collision_id = self.collision_model.getGeometryId("panda_hand")
-            panda_hand_collision_id = self.collision_model.getGeometryId(x.name)
-            go_panda_hand = self.collision_model.geometryObjects[
-                panda_hand_collision_id
-            ]
-            # print(type(go_panda_hand.geometry.getObjectType()))
-            if go_panda_hand.geometry.getObjectType() == fcl.OT_BVH:
-                go_panda_hand.geometry.buildConvexRepresentation(False)
-                go_panda_hand.geometry = (
-                    go_panda_hand.geometry.convex
-                )  # We need to work with the convex hull of the real mesh
+        box_collision_id = self.collision_model.addGeometryObject(go_box)
+        for link_collision_id in self._link_collision_ids:
             collision_pair = pinocchio.CollisionPair(
-                collision_id, panda_hand_collision_id
+                box_collision_id, link_collision_id
             )
             self.collision_model.addCollisionPair(collision_pair)

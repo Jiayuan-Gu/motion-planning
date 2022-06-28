@@ -1,5 +1,6 @@
-import pinocchio
 import numpy as np
+import pinocchio
+
 
 def xyz_wijk_to_SE3(xyz, wijk):
     pos = np.array(xyz)
