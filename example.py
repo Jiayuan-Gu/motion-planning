@@ -1,29 +1,48 @@
-import pinocchio
-from sys import argv
-from os.path import dirname, join, abspath
- 
-# # This path refers to Pinocchio source code but you can define your own directory here.
-# pinocchio_model_dir = join(dirname(dirname(str(abspath(__file__)))), "models")
- 
-# You should change here to set up your own URDF file or just pass it as an argument of this example.
-# urdf_filename = pinocchio_model_dir + '/example-robot-data/robots/ur_description/urdf/ur5_robot.urdf' if len(argv)<2 else argv[1]
-urdf_filename = "/home/jiayuan/projects/ManiSkill2022/mani_skill2/assets/descriptions/panda.urdf"
- 
-# Load the urdf model
-model    = pinocchio.buildModelFromUrdf(urdf_filename)
-print('model name: ' + model.name)
- 
-# Create data required by the algorithms
-data     = model.createData()
- 
-# Sample a random configuration
-q        = pinocchio.randomConfiguration(model)
-print('q: %s' % q.T)
- 
-# Perform the forward kinematics over the kinematic tree
-pinocchio.forwardKinematics(model,data,q)
- 
-# Print out the placement of each joint of the kinematic tree
-for name, oMi in zip(model.names, data.oMi):
-    print(("{:<24} : {: .2f} {: .2f} {: .2f}"
-          .format( name, *oMi.translation.T.flat )))
+import os
+import time
+
+import numpy as np
+
+from pymp import Planner, toSE3
+
+WAIT_TIME = 10
+
+
+def main():
+    urdf = os.path.join(os.path.dirname(__file__), "data/panda.urdf")
+    planner = Planner(urdf, [], ee_link_name="panda_hand_tcp")
+
+    # Initial joint positions
+    # init_qpos = np.zeros(9)
+    init_qpos = np.array([0, 0.2, 0.0, -2.62, 0.0, 2.94, 0.785, 0.04, 0.04])
+
+    planner.scene.addBox([0.04, 0.04, 0.12], toSE3([0.7, 0, 0.06]), name="box")
+    planner.scene.addBox(
+        [0.1, 0.4, 0.2], toSE3([0.55, 0, 0.1]), color=(0, 1, 1, 1), name="obstacle"
+    )
+    # planner.robot.addPointCloud(np.random.rand(100, 3), resolution=0.01, pose=np.eye(4))
+
+    # Visualize initial qpos
+    planner.scene.initMeshcatDisplay(None)
+    planner.scene.display(init_qpos)
+    time.sleep(WAIT_TIME)
+
+    # Goal end-effector pose
+    p = [0.7, 0, 0.1]
+    q = [0, 1, 0, 0]
+
+    # Compute IK
+    ik_results = planner.compute_CLIK([p, q], init_qpos, max_trials=20, seed=0)
+    print(len(ik_results))
+
+    # Visualize IK results
+    planner.robot.play(np.array(ik_results).T, dt=1)
+    time.sleep(WAIT_TIME)
+
+    rrt_result = planner.plan_rrt([p, q], init_qpos)
+    planner.robot.play(np.array(rrt_result["position"]).T, dt=0.5)
+    time.sleep(WAIT_TIME)
+
+
+if __name__ == "__main__":
+    main()

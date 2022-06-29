@@ -101,7 +101,7 @@ class RRTConnect:
                 path = node.traceback()[::-1] + other_node.traceback()
                 if not is_start_tree:
                     path = path[::-1]
-                self.status == "success"
+                self.status = "success"
                 return path
         else:
             self.status = "failure"

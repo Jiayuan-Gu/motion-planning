@@ -7,7 +7,7 @@ import pinocchio
 
 from pymp.path_planning import RRT, GoalStates, JointStateSpace, RRTConnect
 from pymp.robot import RobotWrapper
-from pymp.utils import xyz_wijk_to_SE3
+from pymp.utils import toSE3
 
 logger = logging.getLogger("pymp.planner")
 
@@ -40,22 +40,12 @@ class Planner:
 
         # Options
         self.default_pose_fmt = "xyzwijk"
-
-    @staticmethod
-    def toSE3(x, fmt="xyzwijk"):
-        if fmt == "xyzwijk":
-            if len(x) == 2:  # x = (p, q)
-                assert isinstance(x, (tuple, list)), type(x)
-                pose = xyz_wijk_to_SE3(*x)
-            else:
-                pose = xyz_wijk_to_SE3(x[0:3], x[3:])
-        elif fmt == "T":
-            pose = pinocchio.SE3(np.array(x))
-        elif fmt == "sapien":
-            pose = xyz_wijk_to_SE3(x.p, x.q)
-        else:
-            raise NotImplementedError(fmt)
-        return pose
+    
+    @property
+    def scene(self):
+        """Get the planning scene."""
+        # We reuse RobotWrapper here.
+        return self.robot
 
     def compute_CLIK(
         self,
@@ -66,7 +56,7 @@ class Planner:
         check_collision=True,
         seed=None,
     ):
-        goal_pose = self.toSE3(goal_pose, pose_fmt or self.default_pose_fmt)
+        goal_pose = toSE3(goal_pose, pose_fmt or self.default_pose_fmt)
         _init_qpos = init_qpos
         results = []
 
@@ -127,5 +117,5 @@ class Planner:
         rrt_result = rrt.solve()
 
         result = dict(position=np.array(rrt_result), status=rrt.status)
-        print("RRT status", rrt.status)
+        logger.info("RRT status: {}".format(rrt.status))
         return result

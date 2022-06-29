@@ -227,9 +227,21 @@ class RobotWrapper(pinocchio.RobotWrapper):
             collision_pair = pinocchio.CollisionPair(collision_id, link_collision_id)
             self.collision_model.addCollisionPair(collision_pair)
 
-    def addBox(self, size, pose, color=(0, 1, 0, 1)):
+    def addBox(self, size, pose=None, color=(0, 1, 0, 1), name="box"):
+        """Add a box to the collision model.
+
+        Args:
+            size (tuple, np.ndarray): full size, with shape [3]
+            pose (pinocchio.SE3, np.ndarray, optional): [4, 4] transformation. Defaults to None (set to Identity).
+            color (tuple, optional): color to visualize. Defaults to (0, 1, 0, 1).
+            name (str, optional): name of object. Defaults to "box".
+        """
         box = fcl.Box(*size)
-        go_box = pinocchio.GeometryObject("box", 0, box, pinocchio.SE3(pose))
+        if pose is None:
+            pose = pinocchio.SE3.Identity()
+        else:
+            pose = pinocchio.SE3(pose)
+        go_box = pinocchio.GeometryObject(name, 0, box, pose)
         go_box.meshColor = np.array(color)
 
         box_collision_id = self.collision_model.addGeometryObject(go_box)
