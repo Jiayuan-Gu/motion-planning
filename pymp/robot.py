@@ -222,14 +222,39 @@ class RobotWrapper(pinocchio.RobotWrapper):
     def isCollisionFree(self, q):
         return not self.computeCollisions(q)
 
+    def addCollisionPairs(self, collision_id):
+        for link_collision_id in self._link_collision_ids:
+            collision_pair = pinocchio.CollisionPair(collision_id, link_collision_id)
+            self.collision_model.addCollisionPair(collision_pair)
+
     def addBox(self, size, pose, color=(0, 1, 0, 1)):
         box = fcl.Box(*size)
         go_box = pinocchio.GeometryObject("box", 0, box, pinocchio.SE3(pose))
         go_box.meshColor = np.array(color)
 
         box_collision_id = self.collision_model.addGeometryObject(go_box)
-        for link_collision_id in self._link_collision_ids:
-            collision_pair = pinocchio.CollisionPair(
-                box_collision_id, link_collision_id
-            )
-            self.collision_model.addCollisionPair(collision_pair)
+        self.addCollisionPairs(box_collision_id)
+
+    def addPointCloud(self, points, resolution, pose):
+        """Add a point cloud to the collision model.
+
+        Args:
+            points (np.ndarray): point cloud
+            resolution (float): octree resolution
+            pose (pinocchio.SE3, np.ndarray): pose of point cloud in the base frame
+            color (tuple, optional): color to visualize. Defaults to (0, 1, 1, 1).
+            as_visual (bool): If True, only for visualization.
+        """
+        pcd = fcl.makeOctree(points, resolution)
+        go_pcd = pinocchio.GeometryObject("point_cloud", 0, pcd, pinocchio.SE3(pose))
+
+        pcd_collision_id = self.collision_model.addGeometryObject(go_pcd)
+        self.addCollisionPairs(pcd_collision_id)
+
+    def addPointCloudVisual(self, points, pose, color=(0, 1, 1, 1)):
+        pcd = fcl.BVHModelOBBRSS()
+        pcd.beginModel(0, len(points))
+        pcd.addVertices(points)
+        go_pcd = pinocchio.GeometryObject("point_cloud2", 0, pcd, pinocchio.SE3(pose))
+        go_pcd.meshColor = np.array(color)
+        self.visual_model.addGeometryObject(go_pcd)
