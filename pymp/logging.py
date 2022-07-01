@@ -55,7 +55,7 @@ class CustomFormatter(logging.Formatter):
 
 
 logger = logging.getLogger("pymp")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(CustomFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
 logger.addHandler(ch)

@@ -4,8 +4,9 @@ import os
 
 import hppfcl as fcl
 import numpy as np
-import pinocchio
+import pinocchio as pin
 from bs4 import BeautifulSoup
+
 
 logger = logging.getLogger("pymp.robot")
 
@@ -25,22 +26,27 @@ def cook_urdf_for_pinocchio(urdf_path, use_convex):
     return str(urdf_xml)
 
 
-def load_model_from_urdf(urdf_path, load_collision=True, use_convex=False):
+def load_model_from_urdf(
+    urdf_path, load_collision=True, use_convex=False, floating=False
+):
     """Load a Pinocchio model from URDF."""
-    # model = pinocchio.buildModelFromUrdf(urdf_path)
+    # model = pin.buildModelFromUrdf(urdf_path)
     urdf_str = cook_urdf_for_pinocchio(urdf_path, use_convex)
     urdf_stream = io.StringIO(urdf_str).read()
-    model = pinocchio.buildModelFromXML(urdf_stream)
+    if floating:
+        model = pin.buildModelFromXML(urdf_stream, pin.JointModelFreeFlyer())
+    else:
+        model = pin.buildModelFromXML(urdf_stream)
 
+    collision_model = None
     if load_collision:
         # Load collision geometries
         mesh_dir = os.path.dirname(urdf_path)
-        collision_model = pinocchio.buildGeomFromUrdfString(
-            model, urdf_str, pinocchio.GeometryType.COLLISION, package_dirs=mesh_dir
+        collision_model = pin.buildGeomFromUrdfString(
+            model, urdf_str, pin.GeometryType.COLLISION, package_dirs=mesh_dir
         )
-        return model, collision_model
-    else:
-        return model
+
+    return model, collision_model
 
 
 def compute_CLIK_joint(
@@ -55,25 +61,25 @@ def compute_CLIK_joint(
 ):
     """Closed-Loop Inverse Kinematics (joint)."""
     data = model.createData()
-    oMdes = pinocchio.SE3(T)
+    oMdes = pin.SE3(T)
 
     if init_q is None:
-        q = pinocchio.neutral(model)
+        q = pin.neutral(model)
     else:
         q = np.array(init_q)
 
     success = False
     damp_I = damp * np.eye(6)
     for _ in range(max_iters):
-        pinocchio.forwardKinematics(model, data, q)
+        pin.forwardKinematics(model, data, q)
         dMi = oMdes.actInv(data.oMi[joint_id])
-        err = pinocchio.log(dMi).vector
+        err = pin.log(dMi).vector
         if np.linalg.norm(err) < eps:
             success = True
             break
-        J = pinocchio.computeJointJacobian(model, data, q, joint_id)
+        J = pin.computeJointJacobian(model, data, q, joint_id)
         v = -J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
-        q = pinocchio.integrate(model, q, v * dt)
+        q = pin.integrate(model, q, v * dt)
 
     return q, success, err
 
@@ -87,47 +93,147 @@ def compute_CLIK_frame(
     eps=1e-4,
     dt=1e-1,
     damp=1e-12,
+    qmask=None,
 ):
     """Closed-Loop Inverse Kinematics (frame)."""
     data = model.createData()
-    oMdes = pinocchio.SE3(T)
+    oMdes = pin.SE3(T)
 
     if init_q is None:
-        q = pinocchio.neutral(model)
+        q = pin.neutral(model)
     else:
         q = np.array(init_q)
 
     success = False
     damp_I = damp * np.eye(6)
     for _ in range(max_iters):
-        pinocchio.forwardKinematics(model, data, q)
-        oMf = pinocchio.updateFramePlacement(model, data, frame_id)
+        pin.forwardKinematics(model, data, q)
+        oMf = pin.updateFramePlacement(model, data, frame_id)
         dMf = oMdes.actInv(oMf)
-        err = pinocchio.log(dMf).vector
+        err = pin.log(dMf).vector
         if np.linalg.norm(err) < eps:
             success = True
             break
-        J = pinocchio.computeFrameJacobian(model, data, q, frame_id)
+        J = pin.computeFrameJacobian(model, data, q, frame_id)  # [6, nq]
+        if qmask is not None:
+            J[:, qmask] = 0
         v = -J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
-        q = pinocchio.integrate(model, q, v * dt)
+        q = pin.integrate(model, q, v * dt)
 
     return q, success, err
 
 
-class RobotWrapper(pinocchio.RobotWrapper):
+def makeConvex(vertices, faces):
+    vs = fcl.StdVec_Vec3f()
+    vs.extend(vertices)
+    fs = fcl.StdVec_Triangle()
+    for face in faces:
+        fs.append(fcl.Triangle(*face.tolist()))
+    return fcl.Convex(vs, fs)
+
+
+class RobotWrapper(pin.RobotWrapper):
+    def __init__(self, *args, base_pose=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if base_pose is None:
+            base_pose = pin.SE3.Identity()
+        self._base_pose = base_pose
+
     @classmethod
-    def loadFromURDF(cls, filename, load_collision=True, use_convex=True):
+    def loadFromURDF(
+        cls, filename, load_collision=True, use_convex=True, floating=False, **kwargs
+    ):
+        # TODO(jigu): do we need to get visual model?
         model, collision_model = load_model_from_urdf(
-            filename, load_collision=load_collision, use_convex=use_convex
+            filename,
+            load_collision=load_collision,
+            use_convex=use_convex,
+            floating=floating,
         )
         return cls(
-            model=model, collision_model=collision_model, visual_model=collision_model
+            model=model,
+            collision_model=collision_model,
+            visual_model=collision_model,
+            **kwargs
         )
+
+    def buildReducedRobot(self, list_of_joints_to_lock, reference_configuration=None):
+        # if joint to lock is a string, try to find its index
+        lockjoints_idx = []
+        for jnt in list_of_joints_to_lock:
+            idx = jnt
+            if isinstance(jnt, str):
+                idx = self.model.getJointId(jnt)
+            lockjoints_idx.append(idx)
+
+        if reference_configuration is None:
+            reference_configuration = pin.neutral(self.model)
+
+        model, geom_models = pin.buildReducedModel(
+            model=self.model,
+            list_of_geom_models=[self.visual_model, self.collision_model],
+            list_of_joints_to_lock=lockjoints_idx,
+            reference_configuration=reference_configuration,
+        )
+
+        return RobotWrapper(
+            model=model,
+            collision_model=geom_models[0],
+            visual_model=geom_models[0],  # reuse collision for visual
+            base_pose=self._base_pose,  # initialize base pose
+        )
+
+    @property
+    def base_pose(self):
+        return np.array(self._base_pose)
+
+    # TODO(jigu): set base pose (need to sync all geometries)
+
+    # -------------------------------------------------------------------------- #
+    # Shortcuts to Pinocchio
+    # -------------------------------------------------------------------------- #
+    @property
+    def joint_names(self):
+        return list(self.model.names)
+
+    @property
+    def active_joint_names(self):
+        nqs = self.model.nqs
+        return [name for i, name in enumerate(self.model.names) if nqs[i] > 0]
 
     @property
     def joint_limits(self):
         return self.model.lowerPositionLimit, self.model.upperPositionLimit
 
+    def joint_index(self, name):
+        return self.model.getJointId(name)
+
+    def joint_nq(self, name):
+        return self.model.nqs[self.joint_index(name)]
+
+    def joint_idx_q(self, name):
+        return self.model.idx_qs[self.joint_index(name)]
+
+    def frame_index(self, name):
+        return self.model.getFrameId(name)
+
+    def get_frame(self, index):
+        if isinstance(index, str):
+            index = self.frame_index(index)
+        return self.model.frames[index]
+
+    def get_support_joint_ids(self, link_name, exclude_inactive=True):
+        frame = self.get_frame(link_name)
+        support_joint_ids = list(self.model.supports[frame.parent])
+        if exclude_inactive:
+            nqs = self.model.nqs
+            support_joint_ids = [i for i in support_joint_ids if nqs[i] > 0]
+        return support_joint_ids
+
+    # -------------------------------------------------------------------------- #
+    # Algorithms
+    # -------------------------------------------------------------------------- #
     def compute_CLIK(
         self,
         link2base,
@@ -137,42 +243,45 @@ class RobotWrapper(pinocchio.RobotWrapper):
         eps=1e-4,
         dt=1e-1,
         damp=1e-12,
+        qmask=None,
+        measurement="frame_pose",
     ):
-        frame_id = self.model.getFrameId(link_name)
-        return compute_CLIK_frame(
-            self.model,
-            link2base,
-            frame_id,
-            init_q=init_q,
-            max_iters=max_iters,
-            eps=eps,
-            dt=dt,
-            damp=damp,
-        )
+        link2base = self._base_pose.inverse() * link2base
+        if measurement == "frame_pose":
+            frame_id = self.model.getFrameId(link_name)
+            return compute_CLIK_frame(
+                self.model,
+                link2base,
+                frame_id,
+                init_q=init_q,
+                max_iters=max_iters,
+                eps=eps,
+                dt=dt,
+                damp=damp,
+                qmask=qmask,
+            )
+        elif measurement == "joint_pose":
+            frame_id = self.model.getFrameId(link_name)
+            frame = self.model.frames[frame_id]
+            link2joint = frame.placement
+            joint_id = frame.parent
+            link2base = pin.SE3(link2base)
 
-        # ---------------------------------------------------------------------------- #
-        # Joint frame IK
-        # ---------------------------------------------------------------------------- #
-        # frame_id = self.model.getFrameId(link_name)
-        # frame = self.model.frames[frame_id]
-        # link2joint = frame.placement
-        # joint_id = frame.parent
-        # link2base = pinocchio.SE3(link2base)
+            # Transform frame pose to link pose
+            joint2base = link2base * link2joint.inverse()
 
-        # # Transform frame pose to link pose
-        # joint2base = link2base * link2joint.inverse()
-
-        # return compute_CLIK_joint(
-        #     self.model,
-        #     joint2base,
-        #     joint_id,
-        #     init_q=init_q,
-        #     max_iters=max_iters,
-        #     eps=eps,
-        #     dt=dt,
-        #     damp=damp,
-        # )
-        # ---------------------------------------------------------------------------- #
+            return compute_CLIK_joint(
+                self.model,
+                joint2base,
+                joint_id,
+                init_q=init_q,
+                max_iters=max_iters,
+                eps=eps,
+                dt=dt,
+                damp=damp,
+            )
+        else:
+            raise NotImplementedError(measurement)
 
     # ---------------------------------------------------------------------------- #
     # Collision
@@ -193,28 +302,36 @@ class RobotWrapper(pinocchio.RobotWrapper):
                 # NOTE(jigu): It does not compute a convex hull. Just enable `.convex`
                 go.geometry.buildConvexRepresentation(False)
                 go.geometry = go.geometry.convex
+        logger.debug("num collision links: %d", len(self._link_collision_ids))
+        self.rebuildData()
 
     def removeCollisionPairsFromSRDF(self, srdf_path, verbose=False):
         """Remove collision pairs listed in the SRDF file."""
-        pinocchio.removeCollisionPairs(
+        pin.removeCollisionPairs(
             self.model, self.collision_model, srdf_path, verbose=verbose
         )
         logger.debug(
             "num collision pairs - after removing useless collision pairs: %d",
             len(self.collision_model.collisionPairs),
         )
+        self.rebuildData()
 
     def computeCollisions(self, q):
+        # NOTE(jigu): https://github.com/stack-of-tasks/pinocchio/issues/1701
+        # CAUTION: remember to rebuild data when we modify model!
+
         # Create data structures
-        data = self.model.createData()
-        geom_data = pinocchio.GeometryData(self.collision_model)
+        # data = self.model.createData()
+        # collision_data = pin.GeometryData(self.collision_model)
+        data = self.data
+        collision_data = self.collision_data
 
         # Compute all the collisions
-        return pinocchio.computeCollisions(
+        return pin.computeCollisions(
             self.model,
             data,
             self.collision_model,
-            geom_data,
+            collision_data,
             np.array(q),
             stop_at_first_collision=True,
         )
@@ -223,50 +340,85 @@ class RobotWrapper(pinocchio.RobotWrapper):
         return not self.computeCollisions(q)
 
     def addCollisionPairs(self, collision_id):
+        """Add collision pairs between the input and all links."""
         for link_collision_id in self._link_collision_ids:
-            collision_pair = pinocchio.CollisionPair(collision_id, link_collision_id)
+            collision_pair = pin.CollisionPair(collision_id, link_collision_id)
             self.collision_model.addCollisionPair(collision_pair)
+        self.rebuildData()
+
+    def disableCollision(self, index, flag=True):
+        if isinstance(index, str):
+            index = self.collision_model.getGeometryId(index)
+        self.collision_model.geometryObjects[index].disableCollision = flag
+        self.rebuildData()
+
+    def addGeometry(
+        self, name, geometry, pose, parent_joint=0, color=None, add_collision=True
+    ):
+        # https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/master/doxygen-html/structpinocchio_1_1GeometryObject.html
+        pose = pin.SE3.Identity() if pose is None else pin.SE3(pose)
+
+        # Convert to robot base frame
+        pose = self._base_pose.inverse() * pose
+
+        go = pin.GeometryObject(name, parent_joint, geometry, pose)
+        if color is not None:
+            go.meshColor = np.array(color)
+
+        # NOTE(jigu): pinocchio can take multiple names.
+        # But getGeometryId only returns the first one
+        if self.collision_model.existGeometryName(name):
+            logger.warn("'%s' has existed in the collision model", name)
+
+        if add_collision:
+            collision_id = self.collision_model.addGeometryObject(go)
+            self.addCollisionPairs(collision_id)
+        return go
 
     def addBox(self, size, pose=None, color=(0, 1, 0, 1), name="box"):
         """Add a box to the collision model.
 
         Args:
             size (tuple, np.ndarray): full size, with shape [3]
-            pose (pinocchio.SE3, np.ndarray, optional): [4, 4] transformation. Defaults to None (set to Identity).
+            pose (pin.SE3, np.ndarray, optional): [4, 4] transformation. Defaults to None (set to Identity).
             color (tuple, optional): color to visualize. Defaults to (0, 1, 0, 1).
-            name (str, optional): name of object. Defaults to "box".
+            name (str, optional): name of object.
         """
         box = fcl.Box(*size)
-        if pose is None:
-            pose = pinocchio.SE3.Identity()
-        else:
-            pose = pinocchio.SE3(pose)
-        go_box = pinocchio.GeometryObject(name, 0, box, pose)
-        go_box.meshColor = np.array(color)
+        self.addGeometry(name, box, pose, color=color)
 
-        box_collision_id = self.collision_model.addGeometryObject(go_box)
-        self.addCollisionPairs(box_collision_id)
-
-    def addPointCloud(self, points, resolution, pose):
-        """Add a point cloud to the collision model.
+    def addOctree(self, points, resolution, pose=None, name="octree"):
+        """Add an octree of point cloud to the collision model.
 
         Args:
             points (np.ndarray): point cloud
             resolution (float): octree resolution
-            pose (pinocchio.SE3, np.ndarray): pose of point cloud in the base frame
-            color (tuple, optional): color to visualize. Defaults to (0, 1, 1, 1).
-            as_visual (bool): If True, only for visualization.
+            pose (pin.SE3, np.ndarray, optional): pose of point cloud
+            name (str, optional): name of object.
         """
-        pcd = fcl.makeOctree(points, resolution)
-        go_pcd = pinocchio.GeometryObject("point_cloud", 0, pcd, pinocchio.SE3(pose))
+        octree = fcl.makeOctree(points, resolution)
+        # TODO(jigu): need to verify whether octree can have pose
+        self.addGeometry(name, octree, pose)
 
-        pcd_collision_id = self.collision_model.addGeometryObject(go_pcd)
-        self.addCollisionPairs(pcd_collision_id)
-
-    def addPointCloudVisual(self, points, pose, color=(0, 1, 1, 1)):
+    def addPointCloudVisual(self, points, pose=None, name="point_cloud"):
         pcd = fcl.BVHModelOBBRSS()
         pcd.beginModel(0, len(points))
         pcd.addVertices(points)
-        go_pcd = pinocchio.GeometryObject("point_cloud2", 0, pcd, pinocchio.SE3(pose))
-        go_pcd.meshColor = np.array(color)
-        self.visual_model.addGeometryObject(go_pcd)
+        pcd.endModel()
+        go = self.addGeometry(name, pcd, pose, False)
+        self.visual_model.addGeometryObject(go)
+
+    def addConvex(self, vertices, faces, pose=None, name="convex"):
+        # NOTE(jigu): Multiple convex shapes need to be added individually
+        convex = makeConvex(vertices, faces)
+        go = pin.GeometryObject(name, convex, pose)
+        self.addGeometry(name, go, pose)
+
+    def addMeshVisual(self, vertices, faces, pose=None, name="mesh"):
+        model = fcl.BVHModelOBBRSS()
+        model.beginModel(0, len(vertices))
+        model.addVertices(vertices)
+        model.addTriangles(faces)
+        model.endModel()
+        go = self.addGeometry(name, model, pose, False)
+        self.visual_model.addGeometryObject(go)

@@ -26,7 +26,7 @@ class StateSpace:
 
 class GoalState:
     def __init__(self, goal, state_space: StateSpace, threshold, seed=None):
-        self.goal = goal
+        self.goal = np.array(goal)
         self.state_space = state_space
         self.threshold = threshold
         self.rng = np.random.RandomState(seed)
@@ -40,8 +40,8 @@ class GoalState:
 
 class JointStateSpace(StateSpace):
     def __init__(self, low, high):
-        self.low = low
-        self.high = high
+        self.low = np.array(low)
+        self.high = np.array(high)
 
     def sample_uniform(self, rng=np.random):
         return rng.uniform(self.low, self.high)

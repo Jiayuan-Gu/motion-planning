@@ -3,14 +3,22 @@ import time
 
 import numpy as np
 
-from pymp import Planner, toSE3
+from pymp import Planner, logger, toSE3
 
-WAIT_TIME = 10
+WAIT_TIME = 1
+logger.setLevel("DEBUG")
 
 
 def main():
     urdf = os.path.join(os.path.dirname(__file__), "data/panda.urdf")
-    planner = Planner(urdf, [], ee_link_name="panda_hand_tcp")
+    planner = Planner(
+        urdf,
+        [],
+        ee_link_name="panda_hand_tcp",
+        timestep=0.1,
+        joint_vel_limits=1,
+        joint_acc_limits=1,
+    )
 
     # Initial joint positions
     # init_qpos = np.zeros(9)
@@ -20,7 +28,7 @@ def main():
     planner.scene.addBox(
         [0.1, 0.4, 0.2], toSE3([0.55, 0, 0.1]), color=(0, 1, 1, 1), name="obstacle"
     )
-    # planner.robot.addPointCloud(np.random.rand(100, 3), resolution=0.01, pose=np.eye(4))
+    # planner.robot.addOctree(np.random.rand(1000, 3), resolution=0.01)
 
     # Visualize initial qpos
     planner.scene.initMeshcatDisplay(None)
@@ -33,14 +41,18 @@ def main():
 
     # Compute IK
     ik_results = planner.compute_CLIK([p, q], init_qpos, max_trials=20, seed=0)
-    print(len(ik_results))
+    print("# IK solutions:", len(ik_results))
+    # print(ik_results[:, -2:])
 
     # Visualize IK results
-    planner.robot.play(np.array(ik_results).T, dt=1)
+    planner.robot.play(ik_results.T, dt=0.5)
     time.sleep(WAIT_TIME)
 
-    rrt_result = planner.plan_rrt([p, q], init_qpos)
-    planner.robot.play(np.array(rrt_result["position"]).T, dt=0.5)
+    plan_result = planner.plan_birrt([p, q], init_qpos, seed=1024)
+    q_traj = plan_result["position"]
+    q_traj2 = np.tile(init_qpos[-2:], [len(q_traj), 1])
+    q_traj = np.concatenate([q_traj, q_traj2], 1)
+    planner.robot.play(q_traj.T, dt=0.1)
     time.sleep(WAIT_TIME)
 
 

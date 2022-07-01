@@ -56,7 +56,7 @@ class RRTConnect:
                 self._start_tree.append(node)
 
         if len(self._start_tree) == 0:
-            logger.debug("There are no valid initial states!")
+            logger.info("There are no valid initial states!")
             self.status = "invalid start"
             return None
 
@@ -67,7 +67,7 @@ class RRTConnect:
                 self._goal_tree.append(node)
 
         if len(self._goal_tree) == 0:
-            logger.debug("There are no valid goal states!")
+            logger.info("There are no valid goal states!")
             self.status = "invalid goal"
             return None
 
@@ -98,6 +98,7 @@ class RRTConnect:
 
             # If we connected the trees in a valid way
             if status == "REACHED":
+                logger.debug("Find solution at %d steps", self._n_iter)
                 path = node.traceback()[::-1] + other_node.traceback()
                 if not is_start_tree:
                     path = path[::-1]
