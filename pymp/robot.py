@@ -7,6 +7,8 @@ import numpy as np
 import pinocchio as pin
 from bs4 import BeautifulSoup
 
+from pymp.utils import toSE3
+
 
 logger = logging.getLogger("pymp.robot")
 
@@ -356,7 +358,7 @@ class RobotWrapper(pin.RobotWrapper):
         self, name, geometry, pose, parent_joint=0, color=None, add_collision=True
     ):
         # https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/master/doxygen-html/structpinocchio_1_1GeometryObject.html
-        pose = pin.SE3.Identity() if pose is None else pin.SE3(pose)
+        pose = pin.SE3.Identity() if pose is None else toSE3(pose)
 
         # Convert to robot base frame
         pose = self._base_pose.inverse() * pose
