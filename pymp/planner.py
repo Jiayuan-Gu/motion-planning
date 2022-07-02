@@ -292,6 +292,86 @@ class Planner:
 
         return result
 
+    def plan_screw(self, goal_pose, start_qpos, qpos_step=0.1):
+        """Plan a path by screw motion.
+
+        Args:
+            goal_pose: goal pose of end-effector
+            start_qpos: [nq], start configuration
+            qpos_step: maximum norm of configuration per step
+
+        Returns:
+            dict: same as `plan_by_birrt`
+        """
+        frame_id = self.robot.frame_index(self._ee_link_name)
+        # Current EE pose at base frame
+        curr_pose = self.robot.framePlacement(start_qpos, frame_id)
+        # Target EE pose at base frame
+        goal_pose = self.robot._base_pose.inverse() * toSE3(goal_pose)
+
+        # Spatial twist (screw?)
+        delta_pose = goal_pose * curr_pose.inverse()
+        residual_screw = np.array(pin.log6(delta_pose))
+
+        qpos = np.array(start_qpos)
+        path = [qpos]
+        result = {}
+
+        while True:
+            J = self.robot.computeFrameJacobianWorld(qpos, frame_id)
+            delta_qpos = np.linalg.lstsq(J, residual_screw, rcond=None)[0]
+
+            delta_qnorm = np.linalg.norm(delta_qpos)
+            if delta_qnorm > qpos_step:
+                delta_qpos = delta_qpos * (qpos_step / delta_qnorm)
+
+            # Is it a twist?
+            delta_screw = J @ delta_qpos
+
+            # We assume (skrew) axis is the same for delta and residual twist
+            dnorm = np.linalg.norm(delta_screw)
+            rnorm = np.linalg.norm(residual_screw)
+            # print(delta_screw, residual_screw)
+            # print(dnorm, rnorm)
+
+            # Adjust if overshoot
+            if dnorm > rnorm:
+                ratio = rnorm / dnorm
+                delta_qpos = delta_qpos * ratio
+                delta_screw = delta_screw * ratio
+                result["status"] = "success"
+
+            # Update configuration and residual twist
+            qpos = qpos + delta_qpos
+            residual_screw = residual_screw - delta_screw
+
+            if self.robot.computeCollisions(qpos):
+                result["status"] = "PLAN_FAILURE"
+                result["reason"] = "collision"
+                break
+
+            # Add next configuration into path
+            path.append(qpos)
+            if result.get("status") == "success":
+                break
+
+        path = np.array(path)
+        path = path[:, self.qinds]
+        if result["status"] == "success":
+            result["position"] = path
+            if self.timestep is not None:
+                result.update(
+                    parameterize_path(
+                        path,
+                        self.joint_vel_limits,
+                        self.joint_acc_limits,
+                        self.timestep,
+                    )
+                )
+        else:
+            result["position"] = path
+        return result
+
 
 try:
     import toppra as ta

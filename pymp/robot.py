@@ -233,6 +233,12 @@ class RobotWrapper(pin.RobotWrapper):
             support_joint_ids = [i for i in support_joint_ids if nqs[i] > 0]
         return support_joint_ids
 
+    def computeFrameJacobianWorld(self, q, frame_id):
+        # The default reference frame is local.
+        return pin.computeFrameJacobian(
+            self.model, self.data, q, frame_id, pin.ReferenceFrame.WORLD
+        )
+
     # -------------------------------------------------------------------------- #
     # Algorithms
     # -------------------------------------------------------------------------- #
