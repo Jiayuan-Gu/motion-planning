@@ -13,7 +13,7 @@ def main():
     urdf = os.path.join(os.path.dirname(__file__), "data/panda.urdf")
     planner = Planner(
         urdf,
-        [],
+        None,
         ee_link_name="panda_hand_tcp",
         timestep=0.1,
         joint_vel_limits=1,
