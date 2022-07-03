@@ -222,11 +222,13 @@ class Planner:
                 **kwargs,
             )
 
-            # TODO(jigu): check joint limits
-
             if ik_succ:
                 if check_collision and not self.robot.isCollisionFree(goal_qpos):
                     logger.debug("Find a solution of IK, but not collision-free")
+                    ik_succ = False
+
+                if not self.robot.within_joint_limits(goal_qpos):
+                    logger.debug("Find a solution of IK, but out of joint limits")
                     ik_succ = False
             else:
                 logger.debug("Fail to solve IK. The error is {}".format(ik_err))
@@ -394,7 +396,11 @@ class Planner:
                 result["reason"] = "collision"
                 break
 
-            # TODO(jigu): joint limit
+            # Check joint limits
+            if not self.robot.within_joint_limits(qpos):
+                result["status"] = "plan_failure"
+                result["reason"] = "joint limits"
+                break
 
             # Add next configuration into path
             path.append(qpos)

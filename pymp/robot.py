@@ -208,6 +208,15 @@ class RobotWrapper(pin.RobotWrapper):
     def joint_limits(self):
         return self.model.lowerPositionLimit, self.model.upperPositionLimit
 
+    def within_joint_limits(self, q, eps=1e-4, return_mask=False):
+        assert len(q) == self.model.nq, (len(q), self.model.nq)
+        lower, upper = self.model.lowerPositionLimit, self.model.upperPositionLimit
+        mask = np.logical_and(q >= (lower - eps), q <= (upper + eps))
+        if return_mask:
+            return mask
+        else:
+            return np.all(mask).item()
+
     def joint_index(self, name):
         return self.model.getJointId(name)
 
