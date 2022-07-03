@@ -178,7 +178,7 @@ class Planner:
         max_trials=1,
         check_collision=True,
         seed=None,
-        **kwargs
+        **kwargs,
     ):
         """Closed-Loop Inverse Kinematics.
 
@@ -219,7 +219,7 @@ class Planner:
                 self._ee_link_name,
                 _init_qpos,
                 qmask=self.mask_inactive,
-                **kwargs
+                **kwargs,
             )
 
             # TODO(jigu): check joint limits
@@ -333,70 +333,71 @@ class Planner:
 
         return result
 
-    def plan_screw(self, goal_pose, start_qpos, qpos_step=0.1):
+    def plan_screw(self, goal_pose, start_qpos, qpos_step=0.1, goal_thresh=1e-4):
         """Plan a path by screw motion.
 
         Args:
             goal_pose: goal pose of end-effector
             start_qpos: [nq], start configuration
             qpos_step: maximum norm of configuration per step
+            goal_thresh: maximum norm of screw motion when a goal is reached.
 
         Returns:
             dict: same as `plan_by_birrt`
+
+        See also:
+            http://ras.papercept.net/images/temp/IROS/files/1984.pdf
         """
         start_qpos = np.array(start_qpos)[self.user2pin]
 
         frame_id = self.robot.frame_index(self._ee_link_name)
-        # Current EE pose at base frame
-        curr_pose = self.robot.framePlacement(start_qpos, frame_id)
         # Target EE pose at base frame
         goal_pose = self.robot._base_pose.inverse() * toSE3(goal_pose)
 
-        # Spatial twist (screw?)
-        delta_pose = goal_pose * curr_pose.inverse()
-        residual_screw = np.array(pin.log6(delta_pose))
-
         qpos = start_qpos
+        dt = self.timestep or 1.0
         path = [qpos]
         result = {}
 
         while True:
-            J = self.robot.computeFrameJacobianWorld(qpos, frame_id)
-            delta_qpos = np.linalg.lstsq(J, residual_screw, rcond=None)[0]
+            # Current EE pose at base frame
+            curr_pose = self.robot.framePlacement(qpos, frame_id)
+            # Motion recorded in the spatial (base) frame
+            delta_pose = goal_pose * curr_pose.inverse()
+            # Screw motion (twist in a unit time)
+            desired_twist = np.array(pin.log6(delta_pose))
 
+            # Reach the goal
+            if np.linalg.norm(desired_twist) < goal_thresh:
+                result["status"] = "success"
+                break
+
+            # NOTE(jigu): J * qv = v, so I assume J * (qv * dt) = v * dt to replace interpolation
+            # Solve desired joint velocities by IK
+            J = self.robot.computeFrameJacobianWorld(qpos, frame_id)
+            qvel, residual, _, _ = np.linalg.lstsq(J, desired_twist, rcond=None)
+            if residual > 1e-4:
+                result["status"] = "ik_failure"
+                result["reason"] = f"The residual is {residual}"
+                break
+
+            # Update configuration
+            delta_qpos = qvel * dt
             delta_qnorm = np.linalg.norm(delta_qpos)
             if delta_qnorm > qpos_step:
                 delta_qpos = delta_qpos * (qpos_step / delta_qnorm)
-
-            # Is it a twist?
-            delta_screw = J @ delta_qpos
-
-            # We assume (skrew) axis is the same for delta and residual twist
-            dnorm = np.linalg.norm(delta_screw)
-            rnorm = np.linalg.norm(residual_screw)
-            # print(delta_screw, residual_screw)
-            # print(dnorm, rnorm)
-
-            # Adjust if overshoot
-            if dnorm > rnorm:
-                ratio = rnorm / dnorm
-                delta_qpos = delta_qpos * ratio
-                delta_screw = delta_screw * ratio
-                result["status"] = "success"
-
-            # Update configuration and residual twist
             qpos = qpos + delta_qpos
-            residual_screw = residual_screw - delta_screw
 
+            # Check collision
             if self.robot.computeCollisions(qpos):
                 result["status"] = "plan_failure"
                 result["reason"] = "collision"
                 break
 
+            # TODO(jigu): joint limit
+
             # Add next configuration into path
             path.append(qpos)
-            if result.get("status") == "success":
-                break
 
         path = np.array(path)
         path = path[:, self.pin2user][:, self.mask_plan[self.pin2user]]
@@ -413,6 +414,7 @@ class Planner:
                     )
                 )
         else:
+            # Return partial solutions, which might be helpful for debugging
             result["position"] = path
         return result
 
