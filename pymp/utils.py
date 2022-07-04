@@ -26,6 +26,8 @@ def toSE3(x):
         - T: [4, 4], rigid transformation
         - sapien: sapien.Pose, which has p and q
     """
+    if isinstance(x, pinocchio.SE3):
+        return x
     if isinstance(x, (tuple, list)) and len(x) == 2:
         pose = xyz_wijk_to_SE3(*x)
     elif x.__class__.__name__ == "Pose":  # sapien.Pose

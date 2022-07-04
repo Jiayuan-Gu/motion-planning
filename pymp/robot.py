@@ -248,6 +248,13 @@ class RobotWrapper(pin.RobotWrapper):
             self.model, self.data, q, frame_id, pin.ReferenceFrame.WORLD
         )
 
+    def framePlacement(self, q, index, update_kinematics=True):
+        if update_kinematics:
+            pin.forwardKinematics(self.model, self.data, q)
+        if isinstance(index, str):
+            index = self.model.getFrameId(index)
+        return pin.updateFramePlacement(self.model, self.data, index)
+
     # -------------------------------------------------------------------------- #
     # Algorithms
     # -------------------------------------------------------------------------- #
@@ -304,13 +311,16 @@ class RobotWrapper(pin.RobotWrapper):
     # Collision
     # ---------------------------------------------------------------------------- #
     def initCollisionPairs(self):
+        """Initialize (robot) collision pairs.
+        It should be called before loading geometries other than the robot.
+        """
         self.collision_model.addAllCollisionPairs()
         logger.debug(
             "num collision pairs - initial: %d",
             len(self.collision_model.collisionPairs),
         )
 
-        # Record all link geometries
+        # Initialize all link geometries
         self._link_collision_ids = []
         for go in self.collision_model.geometryObjects:
             collision_id = self.collision_model.getGeometryId(go.name)
@@ -320,6 +330,7 @@ class RobotWrapper(pin.RobotWrapper):
                 go.geometry.buildConvexRepresentation(False)
                 go.geometry = go.geometry.convex
         logger.debug("num collision links: %d", len(self._link_collision_ids))
+
         self.rebuildData()
 
     def removeCollisionPairsFromSRDF(self, srdf_path, verbose=False):
@@ -357,9 +368,17 @@ class RobotWrapper(pin.RobotWrapper):
         return not self.computeCollisions(q)
 
     def addCollisionPairs(self, collision_id):
-        """Add collision pairs between the input and all links."""
-        for link_collision_id in self._link_collision_ids:
-            collision_pair = pin.CollisionPair(collision_id, link_collision_id)
+        """Add collision pairs between the input and all existing geometries."""
+        gos = self.collision_model.geometryObjects
+        go = gos[collision_id]
+        for i in range(self.collision_model.ngeoms):
+            if collision_id == i:
+                continue
+            # Ignore collision with the same joint
+            if gos[i].parentJoint == go.parentJoint:
+                logger.debug("Ignore collision between %s and %s", go.name, gos[i].name)
+                continue
+            collision_pair = pin.CollisionPair(collision_id, i)
             self.collision_model.addCollisionPair(collision_pair)
         self.rebuildData()
 
@@ -368,6 +387,11 @@ class RobotWrapper(pin.RobotWrapper):
             index = self.collision_model.getGeometryId(index)
         self.collision_model.geometryObjects[index].disableCollision = flag
         self.rebuildData()
+
+    def getGeometry(self, index):
+        if isinstance(index, str):
+            index = self.collision_model.getGeometryId(index)
+        return self.collision_model.geometryObjects[index]
 
     def addGeometry(
         self, name, geometry, pose, parent_joint=0, color=None, add_collision=True
@@ -389,6 +413,7 @@ class RobotWrapper(pin.RobotWrapper):
 
         if add_collision:
             collision_id = self.collision_model.addGeometryObject(go)
+            logger.debug("%s(%d) is added to collision model", name, collision_id)
             self.addCollisionPairs(collision_id)
         return go
 
@@ -397,12 +422,29 @@ class RobotWrapper(pin.RobotWrapper):
 
         Args:
             size (tuple, np.ndarray): full size, with shape [3]
-            pose (pin.SE3, np.ndarray, optional): [4, 4] transformation. Defaults to None (set to Identity).
-            color (tuple, optional): color to visualize. Defaults to (0, 1, 0, 1).
+            pose (pin.SE3, np.ndarray, optional): SE3 transformation. If None, set to Identity.
+            color (tuple, optional): color to visualize.
             name (str, optional): name of object.
         """
         box = fcl.Box(*size)
         self.addGeometry(name, box, pose, color=color)
+
+    def attachBox(
+        self, size, pose, frame_index, color=(1, 1, 0, 1), name="attached_box"
+    ):
+        """Attach a box to the collision model.
+
+        Args:
+            size (tuple, np.ndarray): full size, with shape [3]
+            pose (pin.SE3, np.ndarray): pose relative to the attached frame.
+            frame_index (int, str): index or name of attached frame.
+            color (tuple, optional): color to visualize.
+            name (str, optional): name of object.
+        """
+        box = fcl.Box(*size)
+        frame = self.get_frame(frame_index)
+        pose = frame.placement * toSE3(pose)
+        self.addGeometry(name, box, pose, parent_joint=frame.parent, color=color)
 
     def addOctree(self, points, resolution, pose=None, name="octree"):
         """Add an octree of point cloud to the collision model.
