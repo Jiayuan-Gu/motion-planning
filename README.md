@@ -19,7 +19,7 @@ python setup.py install
 From Github directly:
 
 ```bash
-pip install git+https://github.com/Jiayuan-Gu/pymp.git
+pip install --upgrade git+https://github.com/Jiayuan-Gu/pymp.git
 ```
 
 ## Get Started

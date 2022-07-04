@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pymp",
-    version="0.0.0",
+    version="0.1.0",
     author_email="jigu@ucsd.edu",
     keywords="robotics motion planning",
     description="A lightweight motion planning library",
