@@ -28,5 +28,5 @@ setup(
     packages=find_packages(include="pymp*"),
     python_requires=">=3.6",
     install_requires=["numpy", "toppra>0.4.0"],
-    extras_require={"full": ["meshcat", "pytransform3d"]}
+    extras_require={"full": ["meshcat"]}
 )
