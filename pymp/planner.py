@@ -62,7 +62,7 @@ class Planner:
         self.urdf = urdf
         if not srdf:
             srdf = urdf.replace(".urdf", ".srdf")
-            logger.warn("No SRDF provided. Use SRDF at {}.".format(srdf))
+            logger.info("No SRDF provided. Use SRDF at {}.".format(srdf))
         if not os.path.exists(srdf):
             # TODO(jigu): generate SRDF if not exists
             raise FileNotFoundError(srdf)
@@ -429,6 +429,8 @@ try:
     import toppra as ta
     import toppra.algorithm as algo
     import toppra.constraint as constraint
+
+    logging.getLogger("toppra").propagate = False
 except ImportError:
     logger.warn(
         "toppra is not installed for time parameterization (`pip install toppra`)."
