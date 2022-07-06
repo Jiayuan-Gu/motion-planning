@@ -361,7 +361,9 @@ class Planner:
         path = [qpos]
         result = {}
 
-        while True:
+        MAX_ITERS = 1000  # timeout
+
+        for _ in range(MAX_ITERS):
             # Current EE pose at base frame
             curr_pose = self.robot.framePlacement(qpos, frame_id)
             # Motion recorded in the spatial (base) frame
@@ -404,6 +406,9 @@ class Planner:
 
             # Add next configuration into path
             path.append(qpos)
+        else:
+            result["status"] = "plan_failure"
+            result["reason"] = "timeout"
 
         path = np.array(path)
         path = path[:, self.pin2user][:, self.mask_plan[self.pin2user]]
