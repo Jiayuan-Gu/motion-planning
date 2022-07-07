@@ -335,7 +335,9 @@ class Planner:
 
         return result
 
-    def plan_screw(self, goal_pose, start_qpos, qpos_step=0.1, goal_thresh=1e-4):
+    def plan_screw(
+        self, goal_pose, start_qpos, qpos_step=0.1, goal_thresh=1e-3, screw_step=0.1
+    ):
         """Plan a path by screw motion.
 
         Args:
@@ -343,6 +345,7 @@ class Planner:
             start_qpos: [nq], start configuration
             qpos_step: maximum norm of configuration per step
             goal_thresh: maximum norm of screw motion when a goal is reached.
+            screw_step: maximum norm of screw motion per step.
 
         Returns:
             dict: same as `plan_by_birrt`
@@ -357,11 +360,9 @@ class Planner:
         goal_pose = self.robot._base_pose.inverse() * toSE3(goal_pose)
 
         qpos = start_qpos
-        dt = self.timestep or 1.0
         path = [qpos]
         result = {}
-
-        MAX_ITERS = 1000  # timeout
+        MAX_ITERS = 1000
 
         for _ in range(MAX_ITERS):
             # Current EE pose at base frame
@@ -369,24 +370,28 @@ class Planner:
             # Motion recorded in the spatial (base) frame
             delta_pose = goal_pose * curr_pose.inverse()
             # Screw motion (twist in a unit time)
-            desired_twist = np.array(pin.log6(delta_pose))
+            desired_screw = np.array(pin.log6(delta_pose))
+            screw_norm = np.linalg.norm(desired_screw)
 
             # Reach the goal
-            if np.linalg.norm(desired_twist) < goal_thresh:
+            if screw_norm < goal_thresh:
                 result["status"] = "success"
                 break
 
-            # NOTE(jigu): J * qv = v, so I assume J * (qv * dt) = v * dt to replace interpolation
+            # Interpolate
+            if screw_norm > screw_step:
+                desired_screw = desired_screw * (screw_step / screw_norm)
+
+            # NOTE(jigu): J * qv = v, so I assume J * (qv * dt) = v * dt
             # Solve desired joint velocities by IK
             J = self.robot.computeFrameJacobianWorld(qpos, frame_id)
-            qvel, residual, _, _ = np.linalg.lstsq(J, desired_twist, rcond=None)
-            if residual > 1e-4:
+            delta_qpos, residual, _, _ = np.linalg.lstsq(J, desired_screw, rcond=None)
+            if residual > goal_thresh:
                 result["status"] = "ik_failure"
                 result["reason"] = f"The residual is {residual}"
                 break
 
             # Update configuration
-            delta_qpos = qvel * dt
             delta_qnorm = np.linalg.norm(delta_qpos)
             if delta_qnorm > qpos_step:
                 delta_qpos = delta_qpos * (qpos_step / delta_qnorm)
@@ -435,6 +440,7 @@ try:
     import toppra.algorithm as algo
     import toppra.constraint as constraint
 
+    ta.setup_logging()
     logging.getLogger("toppra").propagate = False
 except ImportError:
     logger.warn(
@@ -456,6 +462,9 @@ def parameterize_path(waypoints: np.ndarray, vlims, alims, timestep):
 
     instance = algo.TOPPRA([pc_vel, pc_acc], path, parametrizer="ParametrizeConstAccel")
     jnt_traj = instance.compute_trajectory()
+    if jnt_traj is None:
+        logger.warning("Fail to parameterize path.")
+        return {}
 
     T = int(jnt_traj.duration / timestep)
     ts_sample = np.linspace(0, jnt_traj.duration, T)
