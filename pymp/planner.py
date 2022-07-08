@@ -336,7 +336,7 @@ class Planner:
         return result
 
     def plan_screw(
-        self, goal_pose, start_qpos, qpos_step=0.1, goal_thresh=1e-3, screw_step=0.1
+        self, goal_pose, start_qpos, qpos_step=0.1, goal_thresh=5e-3, screw_step=0.1
     ):
         """Plan a path by screw motion.
 
@@ -453,6 +453,9 @@ def parameterize_path(waypoints: np.ndarray, vlims, alims, timestep):
     # computing the time-optimal path parametrization for robots subject to kinematic and dynamic constraints
     N, dof = waypoints.shape
     assert dof == len(vlims) == len(alims), (dof, len(vlims), len(alims))
+    if N == 1:
+        logger.warning("Only one waypoint. Skip time parameterization")
+        return {}
 
     ss = np.linspace(0, 1, N)
     path = ta.SplineInterpolator(ss, waypoints)
