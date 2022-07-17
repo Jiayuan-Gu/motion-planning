@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+from typing import Union
 
 import hppfcl as fcl
 import numpy as np
@@ -8,7 +9,6 @@ import pinocchio as pin
 from bs4 import BeautifulSoup
 
 from pymp.utils import toSE3
-
 
 logger = logging.getLogger("pymp.robot")
 
@@ -382,7 +382,7 @@ class RobotWrapper(pin.RobotWrapper):
             self.collision_model.addCollisionPair(collision_pair)
         self.rebuildData()
 
-    def disableCollision(self, index, flag=True):
+    def disableCollision(self, index: Union[int, str], flag=True):
         if isinstance(index, str):
             index = self.collision_model.getGeometryId(index)
         self.collision_model.geometryObjects[index].disableCollision = flag

@@ -404,7 +404,9 @@ class Planner:
                 break
 
             # Check joint limits
-            if not self.robot.within_joint_limits(qpos):
+            within_limits = self.robot.within_joint_limits(qpos, return_mask=True)
+            if not np.all(within_limits):
+                logger.debug("within joint limits: {}".format(within_limits.tolist()))
                 result["status"] = "plan_failure"
                 result["reason"] = "joint limits"
                 break
