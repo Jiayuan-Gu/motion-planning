@@ -229,7 +229,7 @@ class RobotWrapper(pin.RobotWrapper):
     def frame_index(self, name):
         return self.model.getFrameId(name)
 
-    def get_frame(self, index):
+    def get_frame(self, index: Union[int, str]):
         if isinstance(index, str):
             index = self.frame_index(index)
         return self.model.frames[index]
@@ -248,7 +248,7 @@ class RobotWrapper(pin.RobotWrapper):
             self.model, self.data, q, frame_id, pin.ReferenceFrame.WORLD
         )
 
-    def framePlacement(self, q, index, update_kinematics=True):
+    def framePlacement(self, q, index: Union[int, str], update_kinematics=True):
         if update_kinematics:
             pin.forwardKinematics(self.model, self.data, q)
         if isinstance(index, str):
@@ -465,7 +465,9 @@ class RobotWrapper(pin.RobotWrapper):
         pcd.addVertices(points)
         pcd.endModel()
         go = self.addGeometry(name, pcd, pose, False)
+        # NOTE(jigu): Currently visual_model == collision_model
         self.visual_model.addGeometryObject(go)
+        self.rebuildData()
 
     def addConvex(self, vertices, faces, pose=None, name="convex"):
         # NOTE(jigu): Multiple convex shapes need to be added individually
@@ -480,4 +482,6 @@ class RobotWrapper(pin.RobotWrapper):
         model.addTriangles(faces)
         model.endModel()
         go = self.addGeometry(name, model, pose, False)
+        # NOTE(jigu): Currently visual_model == collision_model
         self.visual_model.addGeometryObject(go)
+        self.rebuildData()
