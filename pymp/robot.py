@@ -426,6 +426,8 @@ class RobotWrapper(pin.RobotWrapper):
             color (tuple, optional): color to visualize.
             name (str, optional): name of object.
         """
+        if isinstance(size, np.ndarray):
+            size = size.tolist()
         box = fcl.Box(*size)
         self.addGeometry(name, box, pose, color=color)
 
