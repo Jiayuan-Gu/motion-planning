@@ -248,6 +248,7 @@ class Planner:
         self,
         goal,
         start_qpos,
+        ik_max_trials=20,
         rrt_range=0.1,
         rrt_max_iter=10000,
         seed=None,
@@ -282,7 +283,7 @@ class Planner:
             goal_qpos = self.compute_CLIK(
                 goal,
                 start_qpos,
-                max_trials=20,
+                max_trials=ik_max_trials,
                 check_collision=True,
                 seed=seed,
             )
@@ -336,7 +337,13 @@ class Planner:
         return result
 
     def plan_screw(
-        self, goal_pose, start_qpos, qpos_step=0.1, goal_thresh=5e-3, screw_step=0.1
+        self,
+        goal_pose,
+        start_qpos,
+        qpos_step=0.1,
+        goal_thresh=5e-3,
+        screw_step=0.1,
+        check_joint_limits=True,
     ):
         """Plan a path by screw motion.
 
@@ -404,12 +411,13 @@ class Planner:
                 break
 
             # Check joint limits
-            within_limits = self.robot.within_joint_limits(qpos, return_mask=True)
-            if not np.all(within_limits):
-                logger.debug("within joint limits: {}".format(within_limits.tolist()))
-                result["status"] = "plan_failure"
-                result["reason"] = "joint limits"
-                break
+            if check_joint_limits:
+                within_limits = self.robot.within_joint_limits(qpos, return_mask=True)
+                if not np.all(within_limits):
+                    logger.debug("within joint limits: {}".format(within_limits.tolist()))
+                    result["status"] = "plan_failure"
+                    result["reason"] = "joint limits"
+                    break
 
             # Add next configuration into path
             path.append(qpos)
