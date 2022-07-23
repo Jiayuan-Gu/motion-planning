@@ -162,6 +162,13 @@ class Planner:
             self._user_joint_names, self._planning_group, ee_link_name
         )
 
+    def get_ee_pose(self, qpos):
+        qpos = np.array(qpos)[self.user2pin]
+        frame_id = self.robot.frame_index(self._ee_link_name)
+        # ee pose at base frame
+        ee_pose = self.robot.framePlacement(qpos, frame_id)
+        return np.array(self.robot._base_pose * ee_pose)
+
     @property
     def scene(self):
         """Get the planning scene."""
@@ -414,7 +421,9 @@ class Planner:
             if check_joint_limits:
                 within_limits = self.robot.within_joint_limits(qpos, return_mask=True)
                 if not np.all(within_limits):
-                    logger.debug("within joint limits: {}".format(within_limits.tolist()))
+                    logger.debug(
+                        "within joint limits: {}".format(within_limits.tolist())
+                    )
                     result["status"] = "plan_failure"
                     result["reason"] = "joint limits"
                     break
