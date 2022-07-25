@@ -157,7 +157,7 @@ class RobotWrapper(pin.RobotWrapper):
             model=model,
             collision_model=collision_model,
             visual_model=collision_model,
-            **kwargs
+            **kwargs,
         )
 
     def buildReducedRobot(self, list_of_joints_to_lock, reference_configuration=None):
@@ -388,10 +388,14 @@ class RobotWrapper(pin.RobotWrapper):
         self.collision_model.geometryObjects[index].disableCollision = flag
         self.rebuildData()
 
-    def getGeometry(self, index):
+    def getGeometry(self, index: Union[int, str]):
         if isinstance(index, str):
             index = self.collision_model.getGeometryId(index)
         return self.collision_model.geometryObjects[index]
+
+    def removeGeometry(self, name):
+        self.collision_model.removeGeometryObject(name)
+        self.rebuildData()
 
     def addGeometry(
         self, name, geometry, pose, parent_joint=0, color=None, add_collision=True
@@ -409,7 +413,8 @@ class RobotWrapper(pin.RobotWrapper):
         # NOTE(jigu): pinocchio can take multiple names.
         # But getGeometryId only returns the first one
         if self.collision_model.existGeometryName(name):
-            logger.warn("'%s' has existed in the collision model", name)
+            # logger.warn("'%s' has existed in the collision model", name)
+            raise RuntimeError(f"{name} has existed in the collision model")
 
         if add_collision:
             collision_id = self.collision_model.addGeometryObject(go)
