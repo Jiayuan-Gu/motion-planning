@@ -34,16 +34,16 @@ class RRTConnect:
         goal_iter: Iterable,
         max_dist,
         max_iter,
-        start_qpos_range,
-        start_qpos_max_trials,
+        start_state_range,
+        start_state_max_trials,
         seed=None,
     ):
         self.start_states = start_states
         self.goal_iter = goal_iter
         self.max_dist = max_dist
         self.max_iter = max_iter
-        self.start_qpos_range = start_qpos_range
-        self.start_qpos_max_trials = start_qpos_max_trials
+        self.start_state_range = start_state_range
+        self.start_state_max_trials = start_state_max_trials
 
         self._rng = np.random.RandomState(seed)
         self._start_tree: List[Node] = []
@@ -60,31 +60,30 @@ class RRTConnect:
                 self._start_tree.append(node)
 
         if len(self._start_tree) == 0:
-            if self.start_qpos_range == 0.0:
+            if self.start_state_range == 0.0:
                 logger.info("There are no valid initial states!")
                 self.status = "invalid start"
                 return None
 
             logger.info(
-                "There are no valid initial states! Try with noise on initial states"
+                "There are no valid initial states! Try to sample nearby initial states."
             )
 
-            for start_state in self.start_states:
-                noised_start_states = start_state + self._rng.uniform(
-                    -self.start_qpos_range,
-                    self.start_qpos_range,
-                    (self.start_qpos_max_trials, start_state.shape[0]),
+            # NOTE(jigu): Sampling in the loop might be inefficient,
+            # but can support vector format of start_state_range
+            for _ in range(self.start_state_max_trials):
+                offset = self._rng.uniform(
+                    -self.start_state_range, self.start_state_range
                 )
+                nearby_start_state = start_state + offset
+                if self.check_state_validity(nearby_start_state):
+                    self._start_tree.append(Node(nearby_start_state))
+                    # break
 
-                for noised_start_state in noised_start_states:
-                    if self.check_state_validity(noised_start_state):
-                        self._start_tree.append(Node(noised_start_state))
-                        break
-
-        if len(self._start_tree) == 0:
-            logger.info("There are no valid initial states even with noise added")
-            self.status = "invalid start"
-            return None
+            if len(self._start_tree) == 0:
+                logger.info("There are no valid (nearby) initial states!")
+                self.status = "invalid start"
+                return None
 
         # Add goal states into tree
         for goal_state in self.goal_iter:

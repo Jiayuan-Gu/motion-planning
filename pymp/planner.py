@@ -259,7 +259,7 @@ class Planner:
         rrt_range=0.1,
         rrt_max_iter=10000,
         start_qpos_range=0.0,
-        start_qpos_max_trials=10,
+        start_qpos_max_trials=100,
         seed=None,
         goal_fmt="pose",
     ):
@@ -271,10 +271,10 @@ class Planner:
             rrt_range (float, optional): RRT range. Defaults to 0.1.
                 It represents the maximum length of a motion to be added in the tree of motions.
             rrt_max_iter (int, optional): maximum number of trials to expand trees. Defaults to 10000.
-            start_qpos_range (int, optional): Noise added to starting qpos in case of
-                collision of initial qpos. Defaults to no noise.
-            start_qpos_max_trials (int): Number of attempts when adding noise to start_qpos.
-                Has no effect if `start_qpos_range` is 0. Defaults to 10.
+            start_qpos_range (int, optional): The range around the provided @start_qpos,
+                to sample a valid (collision-free) starting qpos. 0 disables sampling.
+            start_qpos_max_trials (int): Number of attempts when sampling around @start_qpos.
+                Has no effect if `start_qpos_range` is 0.
             seed: random seed.
             goal_fmt (str, optional): ["pose", "qpos"].
 
@@ -326,8 +326,8 @@ class Planner:
             goal_space.goal,
             max_dist=rrt_range,
             max_iter=rrt_max_iter,
-            start_qpos_range=start_qpos_range,
-            start_qpos_max_trials=start_qpos_max_trials,
+            start_state_range=start_qpos_range,
+            start_state_max_trials=start_qpos_max_trials,
             seed=seed,
         )
         path = rrt.solve()
