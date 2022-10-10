@@ -5,7 +5,7 @@
 Install dependencies from conda:
 
 ```bash
-conda install pinocchio=2.6.8 -c jigu -c defaults -c conda-forge
+conda install pinocchio=2.6.10 -c conda-forge
 ```
 
 From source:
