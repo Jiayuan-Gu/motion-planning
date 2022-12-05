@@ -16,6 +16,13 @@ pip install "pin>=2.6.12"
 
 ### Install pymp
 
+From pip:
+
+```bash
+# Please install dependencies first
+pip install motion-planning
+```
+
 From source:
 
 ```bash
