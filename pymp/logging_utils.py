@@ -1,3 +1,4 @@
+import os
 import logging
 
 
@@ -55,7 +56,8 @@ class CustomFormatter(logging.Formatter):
 
 
 logger = logging.getLogger("pymp")
-logger.setLevel(logging.INFO)
+# logger.setLevel(logging.INFO)
+logger.setLevel(os.getenv("PYMP_LOG", "INFO"))
 logger.propagate = False
 if not logger.hasHandlers():
     ch = logging.StreamHandler()

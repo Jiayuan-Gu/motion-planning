@@ -82,8 +82,8 @@ class Planner:
 
         # Time parameterization
         self.timestep = timestep
-        self.joint_vel_limits = np.broadcast_to(joint_vel_limits, self.dof)
-        self.joint_acc_limits = np.broadcast_to(joint_acc_limits, self.dof)
+        self.joint_vel_limits = joint_vel_limits
+        self.joint_acc_limits = joint_acc_limits
 
     # -------------------------------------------------------------------------- #
     # Planning interface
@@ -479,7 +479,9 @@ def parameterize_path(waypoints: np.ndarray, vlims, alims, timestep):
     # https://hungpham2511.github.io/toppra/auto_examples/plot_kinematics.html
     # computing the time-optimal path parametrization for robots subject to kinematic and dynamic constraints
     N, dof = waypoints.shape
-    assert dof == len(vlims) == len(alims), (dof, len(vlims), len(alims))
+    assert vlims is not None and alims is not None
+    vlims = np.broadcast_to(vlims, dof)
+    alims = np.broadcast_to(alims, dof)
     if N == 1:
         logger.warning("Only one waypoint. Skip time parameterization")
         return {}
