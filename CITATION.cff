@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: Thanks for using pymp. If you use this software, please cite it as below.
+title: Pythonic Motion Planning
+version: 0.1.3
+authors:
+  - family-names: "Gu"
+    given-names: "Jiayuan"
+    orcid: "https://orcid.org/0000-0002-3207-7921"
+  - family-names: "Liu"
+    given-names: "Xiqiang"
+date-released: "2022-12-05"
+url: "https://github.com/Jiayuan-Gu/pymp"

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pymp",
-    version="0.1.2",
+    version="0.1.3",
     author_email="jigu@ucsd.edu",
     keywords="robotics motion planning",
     description="A lightweight motion planning library",
@@ -26,7 +26,7 @@ setup(
         "Topic :: Utilities",
     ],
     packages=find_packages(include="pymp*"),
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     install_requires=["numpy", "toppra>0.4.0", "lxml", "beautifulsoup4"],
-    extras_require={"full": ["meshcat"]}
+    extras_require={"full": ["meshcat"]},
 )
