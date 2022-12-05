@@ -2,11 +2,12 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="pymp",
+    name="motion-planning",
     version="0.1.3",
     author_email="jigu@ucsd.edu",
     keywords="robotics motion planning",
     description="A lightweight motion planning library",
+    long_description="A lightweight motion planning library",
     classifiers=[
         "Operating System :: POSIX :: Linux",
         "Intended Audience :: Developers",
