@@ -1,3 +1,6 @@
+# Copyright (c) 2022 Jiayuan Gu
+# Licensed under The MIT License [see LICENSE for details]
+
 import logging
 import os
 from typing import Sequence, Union

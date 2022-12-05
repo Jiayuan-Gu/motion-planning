@@ -1,3 +1,6 @@
+# Copyright (c) 2022 Jiayuan Gu
+# Licensed under The MIT License [see LICENSE for details]
+
 """The example to use pymp to plan a path for pick-and-place.
 The visualization is based on Meshcat. 
 The usage of Meshcat visualizer is based on https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/master/doxygen-html/md_doc_b-examples_display_b-meshcat-viewer.html. 
