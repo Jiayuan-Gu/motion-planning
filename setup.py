@@ -1,33 +1,32 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
+from pathlib import Path
+
+# Get the long description from the README file
+ROOT_DIR = Path(__file__).parent
+long_description = ROOT_DIR / "README.md".read_text(encoding="utf-8")
 
 setup(
     name="motion-planning",
     version="0.1.3",
+    author="Jiayuan Gu",
     author_email="jigu@ucsd.edu",
-    keywords="robotics motion planning",
-    description="A lightweight motion planning library",
-    long_description="A lightweight motion planning library",
-    classifiers=[
-        "Operating System :: POSIX :: Linux",
-        "Intended Audience :: Developers",
-        "Intended Audience :: Education",
-        "Intended Audience :: Other Audience",
-        "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
-        "Natural Language :: English",
-        "Framework :: Robot Framework :: Tool",
-        "Programming Language :: C++",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Topic :: Education",
-        "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Utilities",
-    ],
-    packages=find_packages(include="pymp*"),
+    keywords="robotics motion-planning",
+    description="A pythonic motion planning library",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/Jiayuan-Gu/pymp",
+    packages=find_packages(),
     python_requires=">=3.7",
-    install_requires=["numpy", "toppra>0.4.0", "lxml", "beautifulsoup4"],
-    extras_require={"full": ["meshcat"]},
+    install_requires=[
+        "numpy",
+        "pin>=2.6.12",
+        "toppra>=0.4.1",
+        "lxml",
+        "beautifulsoup4",
+    ],
+    extras_require={"tests": ["pytest", "black", "isort"], "extra": ["meshcat"]},
 )
+
+# python setup.py bdist_wheel
+# twine upload dist/*
