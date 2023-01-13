@@ -4,11 +4,11 @@ from pathlib import Path
 
 # Get the long description from the README file
 ROOT_DIR = Path(__file__).parent
-long_description = ROOT_DIR / "README.md".read_text(encoding="utf-8")
+long_description = (ROOT_DIR / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="motion-planning",
-    version="0.1.3",
+    version="0.1.4",
     author="Jiayuan Gu",
     author_email="jigu@ucsd.edu",
     keywords="robotics motion-planning",
