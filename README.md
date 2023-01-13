@@ -1,6 +1,7 @@
 # Pythonic Motion Planning (pymp)
 
 [![PyPI version](https://badge.fury.io/py/motion-planning.svg)](https://badge.fury.io/py/motion-planning)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Jiayuan-Gu/pymp/blob/main/example.ipynb)
 
 > [Motion planning](https://en.wikipedia.org/wiki/Motion_planning) is a computational problem to find a sequence of valid configurations that moves the object from the source to destination.
 

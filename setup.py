@@ -25,7 +25,7 @@ setup(
         "lxml",
         "beautifulsoup4",
     ],
-    extras_require={"tests": ["pytest", "black", "isort"], "extra": ["meshcat"]},
+    extras_require={"tests": ["pytest", "black", "isort"], "meshcat": ["meshcat"]},
 )
 
 # python setup.py bdist_wheel
