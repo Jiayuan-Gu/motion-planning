@@ -10,25 +10,48 @@ import hppfcl as fcl
 import numpy as np
 import pinocchio as pin
 from bs4 import BeautifulSoup
+import trimesh
+import trimesh.convex
 
 from pymp.utils import toSE3
 
 logger = logging.getLogger("pymp.robot")
 
 
-def cook_urdf_for_pinocchio(urdf_path, use_convex):
+def cook_urdf_for_pinocchio(urdf_path, use_convex, package_dir: str = None):
     with open(urdf_path, "r") as f:
         urdf_xml = BeautifulSoup(f.read(), "xml")
 
-    # Add "package://" for Pinocchio
     # for mesh_tag in urdf_xml.find_all("mesh"):
     for mesh_tag in urdf_xml.select("collision mesh"):
-        if not mesh_tag["filename"].startswith("package://"):
-            mesh_tag["filename"] = "package://" + mesh_tag["filename"]
-        if use_convex:
-            mesh_tag["filename"] = mesh_tag["filename"] + ".convex.stl"
+        filename = mesh_tag["filename"].lstrip("package://")
 
-    return str(urdf_xml)
+        # Use convex collision shape
+        if use_convex:
+            assert (
+                package_dir is not None
+            ), "package_dir must be specified if using convex collision"
+            # First check if the (SAPIEN) convex hull file exists
+            convex_path = os.path.join(package_dir, filename + ".convex.stl")
+            if os.path.exists(convex_path):
+                filename = filename + ".convex.stl"
+            else:
+                # Then check if the (trimesh) convex hull file exists
+                convex2_path = os.path.join(package_dir, filename + ".convex2.stl")
+                if not os.path.exists(convex2_path):
+                    logger.info(
+                        "Convex hull ({}) not found, generating...".format(convex2_path)
+                    )
+                    mesh_path = os.path.join(package_dir, filename)
+                    mesh = trimesh.load_mesh(mesh_path)
+                    cvx_mesh = trimesh.convex.convex_hull(mesh)
+                    cvx_mesh.export(convex2_path)
+                filename = filename + ".convex2.stl"
+
+        # Add "package://" for Pinocchio
+        mesh_tag["filename"] = "package://" + filename
+
+    return urdf_xml
 
 
 def load_model_from_urdf(
@@ -36,7 +59,10 @@ def load_model_from_urdf(
 ):
     """Load a Pinocchio model from URDF."""
     # model = pin.buildModelFromUrdf(urdf_path)
-    urdf_str = cook_urdf_for_pinocchio(urdf_path, use_convex)
+
+    package_dir = os.path.dirname(urdf_path)
+    urdf_xml = cook_urdf_for_pinocchio(urdf_path, use_convex, package_dir=package_dir)
+    urdf_str = str(urdf_xml)
     urdf_stream = io.StringIO(urdf_str).read()
     if floating:
         model = pin.buildModelFromXML(urdf_stream, pin.JointModelFreeFlyer())
@@ -46,9 +72,8 @@ def load_model_from_urdf(
     collision_model = None
     if load_collision:
         # Load collision geometries
-        mesh_dir = os.path.dirname(urdf_path)
         collision_model = pin.buildGeomFromUrdfString(
-            model, urdf_str, pin.GeometryType.COLLISION, package_dirs=mesh_dir
+            model, urdf_str, pin.GeometryType.COLLISION, package_dirs=package_dir
         )
 
     return model, collision_model

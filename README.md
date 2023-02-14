@@ -63,3 +63,7 @@ planner = Planner(
     base_pose=[0, 0, 0],
 )
 ```
+
+## Troubleshooting
+
+- `ImportError: libboost_python38.so`: try to force reinstall pinocchio, e.g., `pip install pin --no-cache-dir --force-reinstall --upgrade`.

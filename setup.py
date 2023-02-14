@@ -20,10 +20,11 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "numpy",
-        "pin>=2.6.12",
+        "pin>=2.6.13",
         "toppra>=0.4.1",
         "lxml",
         "beautifulsoup4",
+        "trimesh",
     ],
     extras_require={"tests": ["pytest", "black", "isort"], "meshcat": ["meshcat"]},
 )
