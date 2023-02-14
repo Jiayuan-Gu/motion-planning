@@ -9,9 +9,9 @@ from typing import Union
 import hppfcl as fcl
 import numpy as np
 import pinocchio as pin
-from bs4 import BeautifulSoup
 import trimesh
 import trimesh.convex
+from bs4 import BeautifulSoup
 
 from pymp.utils import toSE3
 
@@ -371,6 +371,80 @@ class RobotWrapper(pin.RobotWrapper):
             len(self.collision_model.collisionPairs),
         )
         self.rebuildData()
+
+    def getAdjacentPairs(self):
+        adjacent_pairs = []
+        for frame in self.model.frames:
+            if frame.type != pin.FrameType.BODY:
+                continue
+            parent_frame = frame
+            while True:
+                parent_frame_idx = parent_frame.previousFrame
+                parent_frame = self.model.frames[parent_frame_idx]
+                if parent_frame_idx == 0 or parent_frame.type == pin.FrameType.BODY:
+                    break
+            if parent_frame.name != "universe":
+                adjacent_pairs.append(
+                    dict(link1=parent_frame.name, link2=frame.name, reason="Adjacent")
+                )
+        return adjacent_pairs
+
+    def findAlwaysCollisionPairs(self, n=1000):
+        # Find the link of each geometry
+        geoms = self.collision_model.geometryObjects
+        geom_link_names = []
+        for i in range(self.collision_model.ngeoms):
+            geom = geoms[i]
+            link_name = "_".join(geom.name.split("_")[:-1])
+            geom_link_names.append(link_name)
+
+        link_names = list(set(geom_link_names))
+        n_links = len(link_names)
+        link_name_to_id = {name: i for i, name in enumerate(link_names)}
+        geom_link_ids = [link_name_to_id[x] for x in geom_link_names]
+
+        # Matrix to count the number of collisions between each pair of links
+        count = np.zeros([n_links, n_links], dtype=int)
+
+        for _ in range(n):
+            q = pin.randomConfiguration(self.model)
+
+            # Compute all the collisions
+            data = self.data
+            collision_data = self.collision_data
+            is_collided = pin.computeCollisions(
+                self.model, data, self.collision_model, collision_data, q, False
+            )
+
+            if not is_collided:
+                break
+
+            cmat = np.zeros([n_links, n_links], dtype=bool)
+
+            # According to examples/collisions.py in pinocchio
+            n_cp = len(self.collision_model.collisionPairs)
+            for i in range(n_cp):
+                cp = self.collision_model.collisionPairs[i]
+                cr = collision_data.collisionResults[i]
+                if cr.isCollision():
+                    idx1 = geom_link_ids[cp.first]
+                    idx2 = geom_link_ids[cp.second]
+                    cmat[idx1][idx2] = 1
+
+            # Update the count matrix
+            count = count + cmat
+
+        collision_pairs = []
+        for i in range(n_links):
+            for j in range(n_links):
+                if count[i][j] < n:
+                    continue
+                link1 = link_names[i]
+                link2 = link_names[j]
+                logger.info(f"{link1} always collides with {link2}")
+                collision_pairs.append(dict(link1=link1, link2=link2))
+
+        return collision_pairs
 
     def computeCollisions(self, q):
         # NOTE(jigu): https://github.com/stack-of-tasks/pinocchio/issues/1701

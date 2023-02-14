@@ -11,6 +11,7 @@ import pinocchio as pin
 from pymp.path_planning import GoalStates, JointStateSpace, RRTConnect
 from pymp.robot import RobotWrapper
 from pymp.utils import toSE3
+from pymp.srdf_utils import dump_srdf
 
 logger = logging.getLogger("pymp.planner")
 
@@ -66,9 +67,6 @@ class Planner:
         if not srdf:
             srdf = urdf.replace(".urdf", ".srdf")
             logger.info("No SRDF provided. Use SRDF at {}.".format(srdf))
-        if not os.path.exists(srdf):
-            # TODO(jigu): generate SRDF if not exists
-            raise FileNotFoundError(srdf)
         self.srdf = srdf
 
         # Initialize Pinocchio model
@@ -77,7 +75,13 @@ class Planner:
         self.robot = RobotWrapper.loadFromURDF(
             urdf, use_convex=use_convex, base_pose=base_pose
         )
+
         self.robot.initCollisionPairs()
+        if not os.path.exists(srdf):
+            logger.info("SRDF ({}) not found. Generating...".format(srdf))
+            adjacent_pairs = self.robot.getAdjacentPairs()
+            always_pairs = self.robot.findAlwaysCollisionPairs(1000)
+            dump_srdf(adjacent_pairs + always_pairs, srdf)
         self.robot.removeCollisionPairsFromSRDF(srdf)
 
         # Setup planning interface
