@@ -7,8 +7,8 @@ ROOT_DIR = Path(__file__).parent
 long_description = (ROOT_DIR / "README.md").read_text(encoding="utf-8")
 
 setup(
-    name="motion-planning",
-    version="0.1.4",
+    name="motion_planning",
+    version="0.1.5",
     author="Jiayuan Gu",
     author_email="jigu@ucsd.edu",
     keywords="robotics motion-planning",
