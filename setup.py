@@ -20,6 +20,7 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "numpy",
+        "scipy<=1.10.1",
         "pin>=2.6.13",
         "toppra>=0.4.1",
         "lxml",
