@@ -66,4 +66,6 @@ planner = Planner(
 
 ## Troubleshooting
 
-- `ImportError: libboost_python38.so`: try to force reinstall pinocchio, e.g., `pip install pin --no-cache-dir --force-reinstall --upgrade`.
+> `ImportError: libboost_python38.so` or `undefined symbol`
+
+Try to force reinstall `pinocchio`: `pip install pin --no-cache-dir --force-reinstall --upgrade`.

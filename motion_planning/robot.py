@@ -89,7 +89,12 @@ def compute_CLIK_joint(
     dt=1e-1,
     damp=1e-12,
 ):
-    """Closed-Loop Inverse Kinematics (joint)."""
+    """Closed-Loop Inverse Kinematics (joint).
+
+    References:
+    - "A solution algorithm to the inverse kinematic problem for redundant manipulators",https://ieeexplore.ieee.org/document/804
+    - https://github.com/stephane-caron/pinocchio/blob/d3c24fc6719713adcc7ca18c1e4bb0a38bc22371/examples/inverse-kinematics.py
+    """
     data = model.createData()
     oMdes = pin.SE3(T)
 
@@ -102,12 +107,13 @@ def compute_CLIK_joint(
     damp_I = damp * np.eye(6)
     for _ in range(max_iters):
         pin.forwardKinematics(model, data, q)
-        dMi = oMdes.actInv(data.oMi[joint_id])
-        err = pin.log(dMi).vector
+        iMd = data.oMi[joint_id].actInv(oMdes)
+        err = pin.log(iMd).vector  # in joint frame
         if np.linalg.norm(err) < eps:
             success = True
             break
-        J = pin.computeJointJacobian(model, data, q, joint_id)
+        J = pin.computeJointJacobian(model, data, q, joint_id)  # in local frame
+        J = -np.dot(pin.Jlog6(iMd.inverse()), J)
         v = -J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
         q = pin.integrate(model, q, v * dt)
 
@@ -139,12 +145,13 @@ def compute_CLIK_frame(
     for _ in range(max_iters):
         pin.forwardKinematics(model, data, q)
         oMf = pin.updateFramePlacement(model, data, frame_id)
-        dMf = oMdes.actInv(oMf)
-        err = pin.log(dMf).vector
+        iMd = oMf.actInv(oMdes)
+        err = pin.log(iMd).vector  # in joint frame
         if np.linalg.norm(err) < eps:
             success = True
             break
-        J = pin.computeFrameJacobian(model, data, q, frame_id)  # [6, nq]
+        J = pin.computeFrameJacobian(model, data, q, frame_id)  # [6, nq], local frame
+        J = -np.dot(pin.Jlog6(iMd.inverse()), J)
         if qmask is not None:
             J[:, qmask] = 0
         v = -J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
