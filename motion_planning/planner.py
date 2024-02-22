@@ -8,10 +8,10 @@ from typing import Sequence, Union
 import numpy as np
 import pinocchio as pin
 
-from pymp.path_planning import GoalStates, JointStateSpace, RRTConnect
-from pymp.robot import RobotWrapper
-from pymp.utils import toSE3
-from pymp.srdf_utils import dump_srdf
+from motion_planning.path_planning import GoalStates, JointStateSpace, RRTConnect
+from motion_planning.robot import RobotWrapper
+from motion_planning.utils import toSE3
+from motion_planning.srdf_utils import dump_srdf
 
 logger = logging.getLogger("pymp.planner")
 

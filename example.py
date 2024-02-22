@@ -12,7 +12,7 @@ import time
 import numpy as np
 import pinocchio as pin
 
-from pymp import Planner, toSE3
+from motion_planning import Planner, toSE3
 
 
 def main():

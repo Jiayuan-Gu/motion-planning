@@ -1,4 +1,4 @@
-# Pythonic Motion Planning (pymp)
+# Pythonic Motion Planning
 
 [![PyPI version](https://badge.fury.io/py/motion-planning.svg)](https://badge.fury.io/py/motion-planning)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Jiayuan-Gu/pymp/blob/main/example.ipynb)
@@ -13,11 +13,11 @@ This library is designed for robotic applications, especially sampling-based alg
 
 ## Installation
 
-### Dependencies
+This library has the following dependencies:
 
-This library (*pymp*) depends on *[pinocchio](https://github.com/stack-of-tasks/pinocchio)* to handle URDF and robot kinematics, *[hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl)* to check collision, *[toppra](https://github.com/hungpham2511/toppra)* to do time parameterization.
-
-### Install pymp
+- [pinocchio](https://github.com/stack-of-tasks/pinocchio): processing URDF and robot kinematics
+- [hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl): collision checker
+- [toppra](https://github.com/hungpham2511/toppra): time parameterization
 
 From pip:
 
@@ -28,19 +28,19 @@ pip install motion-planning
 From source:
 
 ```bash
-git clone https://github.com/Jiayuan-Gu/pymp.git
+git clone https://github.com/Jiayuan-Gu/motion-planning.git
 pip install -e .
 ```
 
 From Github directly:
 
 ```bash
-pip install --upgrade git+https://github.com/Jiayuan-Gu/pymp.git
+pip install --upgrade git+https://github.com/Jiayuan-Gu/motion-planning.git
 ```
 
 ## Usage
 
-See [example.py](example.py) for basic usage. Note that `pymp` depends on SRDF associated with URDF to remove self-collision.
+See [example.py](example.py) for basic usage. Note that the SRDF associated with the URDF is needed to remove self-collision.
 
 ### Logging
 
@@ -53,7 +53,7 @@ export PYMP_LOG=DEBUG
 
 ### Base pose
 
-`pymp` supports specifying the pose of the base link during the initialization of the planner. We support many formats of pose (e.g., \[x, y, z\] for position, \[w, i, j, k\] for quaternion, \[x, y, z, w, i, j, k\] for SE(3), or a 4x4 rigid transformation matrix)
+We support specifying the pose of the base link during the initialization of the planner. We support many formats of pose (e.g., \[x, y, z\] for position, \[w, i, j, k\] for quaternion, \[x, y, z, w, i, j, k\] for SE(3), or a 4x4 rigid transformation matrix)
 
 ```python
 from pymp import Planner

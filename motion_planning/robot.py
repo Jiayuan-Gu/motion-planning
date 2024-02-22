@@ -13,7 +13,7 @@ import trimesh
 import trimesh.convex
 from bs4 import BeautifulSoup
 
-from pymp.utils import toSE3
+from motion_planning.utils import toSE3
 
 logger = logging.getLogger("pymp.robot")
 
