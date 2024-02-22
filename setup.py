@@ -15,19 +15,21 @@ setup(
     description="A pythonic motion planning library",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Jiayuan-Gu/pymp",
+    url="https://github.com/Jiayuan-Gu/motion-planning",
     packages=find_packages(),
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=[
         "numpy",
-        "scipy<=1.10.1",
-        "pin>=2.6.13",
-        "toppra>=0.4.1",
+        "pin>=2.6.18",
+        "toppra>=0.6.0",
         "lxml",
         "beautifulsoup4",
         "trimesh",
     ],
-    extras_require={"tests": ["pytest", "black", "isort"], "meshcat": ["meshcat"]},
+    extras_require={
+        "tests": ["pytest", "black", "isort"],
+        "extra": ["meshcat"],
+    },
 )
 
 # python setup.py bdist_wheel

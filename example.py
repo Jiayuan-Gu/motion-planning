@@ -72,7 +72,7 @@ def main():
     # print(ik_results[:, -2:])
 
     # Visualize IK results
-    viz.play(ik_results.T, dt=0.5)
+    viz.play(ik_results, dt=0.5)
     time.sleep(WAIT_TIME)
 
     # Use RRT-connect to plan a path
@@ -82,7 +82,7 @@ def main():
     q_traj = np.pad(q_traj, [(0, 0), (0, 2)], constant_values=init_qpos[-2:])
 
     # Visualize planned trajectory
-    viz.play(q_traj.T, dt=0.1)
+    viz.play(q_traj, dt=0.1)
     time.sleep(WAIT_TIME)
 
     # Attach box
@@ -107,7 +107,7 @@ def main():
 
     # Visualize planned trajectory
     viz.reload(planner.scene.getGeometry("attached_box"), pin.GeometryType.VISUAL)
-    viz.play(q_traj.T, dt=0.1)
+    viz.play(q_traj, dt=0.1)
     time.sleep(WAIT_TIME)
 
 
