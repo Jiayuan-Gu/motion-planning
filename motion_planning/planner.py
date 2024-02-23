@@ -375,12 +375,14 @@ class Planner:
             qpos_step: maximum norm of configuration per step
             goal_thresh: maximum norm of screw motion when a goal is reached.
             screw_step: maximum norm of screw motion per step.
+            check_joint_limits: whether to check if joint limits are violated.
 
         Returns:
             dict: same as `plan_by_birrt`
 
         See also:
-            http://ras.papercept.net/images/temp/IROS/files/1984.pdf
+            - "A solution algorithm to the inverse kinematic problem for redundant manipulators",https://ieeexplore.ieee.org/document/804
+            - http://ras.papercept.net/images/temp/IROS/files/1984.pdf
         """
         start_qpos = np.array(start_qpos)[self.user2pin]
 
@@ -411,14 +413,10 @@ class Planner:
             if screw_norm > screw_step:
                 desired_screw = desired_screw * (screw_step / screw_norm)
 
-            # NOTE(jigu): J * qv = v, so I assume J * (qv * dt) = v * dt
+            # NOTE(jigu): dx = J * dq
             # Solve desired joint velocities by IK
             J = self.robot.computeFrameJacobianWorld(qpos, frame_id)
             delta_qpos, residual, _, _ = np.linalg.lstsq(J, desired_screw, rcond=None)
-            if residual > goal_thresh:
-                result["status"] = "ik_failure"
-                result["reason"] = f"The residual is {residual}"
-                break
 
             # Update configuration
             delta_qnorm = np.linalg.norm(delta_qpos)

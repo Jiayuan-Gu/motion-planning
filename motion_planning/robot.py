@@ -79,50 +79,9 @@ def load_model_from_urdf(
     return model, collision_model
 
 
-def compute_CLIK_joint(
+def compute_CLIK(
     model,
-    T,
-    joint_id: int,
-    init_q=None,
-    max_iters=1000,
-    eps=1e-4,
-    dt=1e-1,
-    damp=1e-12,
-):
-    """Closed-Loop Inverse Kinematics (joint).
-
-    References:
-    - "A solution algorithm to the inverse kinematic problem for redundant manipulators",https://ieeexplore.ieee.org/document/804
-    - https://github.com/stephane-caron/pinocchio/blob/d3c24fc6719713adcc7ca18c1e4bb0a38bc22371/examples/inverse-kinematics.py
-    """
-    data = model.createData()
-    oMdes = pin.SE3(T)
-
-    if init_q is None:
-        q = pin.neutral(model)
-    else:
-        q = np.array(init_q)
-
-    success = False
-    damp_I = damp * np.eye(6)
-    for _ in range(max_iters):
-        pin.forwardKinematics(model, data, q)
-        iMd = data.oMi[joint_id].actInv(oMdes)
-        err = pin.log(iMd).vector  # in joint frame
-        if np.linalg.norm(err) < eps:
-            success = True
-            break
-        J = pin.computeJointJacobian(model, data, q, joint_id)  # in local frame
-        J = -np.dot(pin.Jlog6(iMd.inverse()), J)
-        v = -J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
-        q = pin.integrate(model, q, v * dt)
-
-    return q, success, err
-
-
-def compute_CLIK_frame(
-    model,
-    T,
+    desired_pose,
     frame_id: int,
     init_q=None,
     max_iters=1000,
@@ -130,10 +89,28 @@ def compute_CLIK_frame(
     dt=1e-1,
     damp=1e-12,
     qmask=None,
+    mode="frame",
 ):
-    """Closed-Loop Inverse Kinematics (frame)."""
+    """Closed-Loop Inverse Kinematics.
+
+    Args:
+        model: pinocchio model
+        desired_pose: desired pose
+        frame_id: frame id (or joint id)
+        init_q: initial joint configuration, of shape [nq]
+        max_iters: maximum number of iterations
+        eps: tolerance for convergence
+        dt: time step
+        damp: damping coefficient
+        qmask: joint mask, of shape [nq]
+        mode: which pose measurement is used to optimize. "frame" or "joint".
+
+    References:
+    - "A solution algorithm to the inverse kinematic problem for redundant manipulators",https://ieeexplore.ieee.org/document/804
+    - https://github.com/stephane-caron/pinocchio/blob/d3c24fc6719713adcc7ca18c1e4bb0a38bc22371/examples/inverse-kinematics.py
+    """
     data = model.createData()
-    oMdes = pin.SE3(T)
+    oMdes = pin.SE3(desired_pose)  # in world frame
 
     if init_q is None:
         q = pin.neutral(model)
@@ -144,17 +121,29 @@ def compute_CLIK_frame(
     damp_I = damp * np.eye(6)
     for _ in range(max_iters):
         pin.forwardKinematics(model, data, q)
-        oMf = pin.updateFramePlacement(model, data, frame_id)
-        iMd = oMf.actInv(oMdes)
+
+        if mode == "frame":
+            oMf = pin.updateFramePlacement(model, data, frame_id)
+            iMd = oMf.actInv(oMdes)
+        elif mode == "joint":
+            iMd = data.oMi[frame_id].actInv(oMdes)
+
         err = pin.log(iMd).vector  # in joint frame
+
         if np.linalg.norm(err) < eps:
             success = True
             break
-        J = pin.computeFrameJacobian(model, data, q, frame_id)  # [6, nq], local frame
-        J = -np.dot(pin.Jlog6(iMd.inverse()), J)
+
+        # Compute the Jacobian J ([6, nq]) in local frame
+        if mode == "frame":
+            J = pin.computeFrameJacobian(model, data, q, frame_id)
+        elif mode == "joint":
+            J = pin.computeJointJacobian(model, data, q, frame_id)
+
         if qmask is not None:
             J[:, qmask] = 0
-        v = -J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
+        # The solution is v = J.T * inv(J * J.T + damp * I) * err
+        v = J.T.dot(np.linalg.solve(J.dot(J.T) + damp_I, err))
         q = pin.integrate(model, q, v * dt)
 
     return q, success, err
@@ -303,12 +292,12 @@ class RobotWrapper(pin.RobotWrapper):
         dt=1e-1,
         damp=1e-12,
         qmask=None,
-        measurement="frame_pose",
+        mode="frame",
     ):
         link2base = self._base_pose.inverse() * link2base
-        if measurement == "frame_pose":
+        if mode == "frame":
             frame_id = self.model.getFrameId(link_name)
-            return compute_CLIK_frame(
+            return compute_CLIK(
                 self.model,
                 link2base,
                 frame_id,
@@ -318,8 +307,9 @@ class RobotWrapper(pin.RobotWrapper):
                 dt=dt,
                 damp=damp,
                 qmask=qmask,
+                mode=mode,
             )
-        elif measurement == "joint_pose":
+        elif mode == "joint":
             frame_id = self.model.getFrameId(link_name)
             frame = self.model.frames[frame_id]
             link2joint = frame.placement
@@ -329,7 +319,7 @@ class RobotWrapper(pin.RobotWrapper):
             # Transform frame pose to link pose
             joint2base = link2base * link2joint.inverse()
 
-            return compute_CLIK_joint(
+            return compute_CLIK(
                 self.model,
                 joint2base,
                 joint_id,
@@ -338,9 +328,11 @@ class RobotWrapper(pin.RobotWrapper):
                 eps=eps,
                 dt=dt,
                 damp=damp,
+                qmask=qmask,
+                mode=mode,
             )
         else:
-            raise NotImplementedError(measurement)
+            raise NotImplementedError(mode)
 
     # ---------------------------------------------------------------------------- #
     # Collision
