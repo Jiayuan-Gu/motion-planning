@@ -551,6 +551,20 @@ class RobotWrapper(pin.RobotWrapper):
         sphere = fcl.Sphere(*size)
         self.addGeometry(name, sphere, pose, color=color)
 
+    def addCylinder(self, size, pose=None, color=(0, 1, 0, 1), name="cylinder"):
+        """Add a cylinder to the collision model.
+
+        Args:
+            size (tuple, np.ndarray): radius and height of the cylinder, [r, h]
+            pose (pin.SE3, np.ndarray, optional): SE3 transformation. If None, set to Identity.
+            color (tuple, optional): color to visualize.
+            name (str, optional): name of object.
+        """
+        if isinstance(size, np.ndarray):
+            size = size.tolist()
+        cylinder = fcl.Cylinder(*size)
+        self.addGeometry(name, cylinder, pose, color=color)
+
     def attachBox(
         self, size, pose, frame_index, color=(1, 1, 0, 1), name="attached_box"
     ):
